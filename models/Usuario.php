@@ -60,20 +60,20 @@ class Usuario {
         return $stmt->execute();
     }
     
-    /**
-     * Busca un usuario por email y devuelve sus datos relevantes para el login.
-     * @param string $email El email a buscar.
-     * @return array|null Datos del usuario si se encuentra, null si no.
+     /**
+     * Busca un usuario por email y devuelve datos relevantes para login.
+     * @return array|null
      */
     public function findByEmail($email) {
-        // Selecciona todos los campos necesarios para login y sesión
-        $query = "SELECT id_usuario, nombre, apellido, email, contrasena_hash, rol, password_temporal 
+        // Añadimos las nuevas columnas a la consulta
+        $query = "SELECT id_usuario, nombre, apellido, email, contrasena_hash, rol, password_temporal, 
+                         failed_login_attempts, last_failed_login_attempt 
                   FROM Usuarios WHERE email = ?";
         $stmt = $this->conexion->prepare($query);
         $stmt->bind_param("s", $email);
         $stmt->execute();
         $resultado = $stmt->get_result();
-        return $resultado->fetch_assoc(); // Devuelve los datos como array asociativo o null
+        return $resultado->fetch_assoc();
     }
 
     /**
@@ -274,6 +274,36 @@ class Usuario {
         $stmt->bind_param("si", $contrasena_hash, $id_usuario);
         $stmt->execute();
         return $stmt->affected_rows;
+    }
+
+   
+
+    /**
+     * Incrementa el contador de intentos fallidos y actualiza la fecha.
+     * @param int $id_usuario
+     * @return bool
+     */
+    public function incrementFailedAttempts($id_usuario) {
+        $query = "UPDATE Usuarios SET failed_login_attempts = failed_login_attempts + 1, 
+                         last_failed_login_attempt = NOW() 
+                  WHERE id_usuario = ?";
+        $stmt = $this->conexion->prepare($query);
+        $stmt->bind_param("i", $id_usuario);
+        return $stmt->execute();
+    }
+
+    /**
+     * Resetea el contador de intentos fallidos.
+     * @param int $id_usuario
+     * @return bool
+     */
+    public function resetFailedAttempts($id_usuario) {
+        $query = "UPDATE Usuarios SET failed_login_attempts = 0, 
+                         last_failed_login_attempt = NULL 
+                  WHERE id_usuario = ?";
+        $stmt = $this->conexion->prepare($query);
+        $stmt->bind_param("i", $id_usuario);
+        return $stmt->execute();
     }
 }
 
