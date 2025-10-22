@@ -101,166 +101,176 @@
     </div>
     
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const form = document.querySelector('.register-form');
-            const registerBtn = document.querySelector('.register-btn');
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.querySelector('.register-form');
+        const registerBtn = document.querySelector('.register-btn');
+        
+        // --- VALIDACIONES EN TIEMPO REAL ---
+        const passwordInput = document.getElementById('password');
+        const confirmPasswordInput = document.getElementById('confirm_password');
+        const passwordHint = document.querySelector('.password-hint');
+
+        // ✅ AÑADIDO: Regex para caracter especial
+        const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
+
+        if(passwordInput && passwordHint) {
+            passwordInput.addEventListener('input', function() {
+                const password = this.value;
+                
+                // Actualizamos el texto del hint
+                const hintText = 'Mínimo 8 carac, 1 especial (ej. !@#$) y terminar con AL';
+
+                if (password.length > 0) {
+                    
+                    // ✅ LÓGICA ACTUALIZADA
+                    const isLengthOk = password.length >= 8;
+                    const hasSpecialChar = specialCharRegex.test(password);
+                    const endsWithAl = password.toLowerCase().endsWith('al');
+
+                    if (isLengthOk && hasSpecialChar && endsWithAl) {
+                        passwordHint.style.color = '#28a745'; // Verde
+                        passwordHint.textContent = '✓ Contraseña válida';
+                    } else {
+                        passwordHint.style.color = '#dc3545'; // Rojo
+                        passwordHint.textContent = hintText;
+                    }
+                } else {
+                    passwordHint.style.color = '#dc3545';
+                    passwordHint.textContent = hintText;
+                }
+            });
+        }
+
+        if(confirmPasswordInput) {
+            confirmPasswordInput.addEventListener('input', function() {
+                const password = passwordInput.value;
+                const confirmPassword = this.value;
+                if (confirmPassword.length > 0) {
+                    this.style.borderColor = (password === confirmPassword) ? '#28a745' : '#dc3545';
+                } else {
+                    this.style.borderColor = '#e0e0e0'; // Color por defecto
+                }
+            });
+        }
+
+        // --- MANEJO DEL ENVÍO DEL FORMULARIO ---
+        form.addEventListener('submit', function(e) {
+            e.preventDefault(); 
+            removeNotifications();
             
-            // --- VALIDACIONES EN TIEMPO REAL (Las que ya tenías) ---
-            const passwordInput = document.getElementById('password');
-            const confirmPasswordInput = document.getElementById('confirm_password'); // Asegúrate que el ID sea 'confirm_password' en tu HTML
-            const passwordHint = document.querySelector('.password-hint');
-
-            if(passwordInput && passwordHint) {
-                passwordInput.addEventListener('input', function() {
-                    const password = this.value;
-                    if (password.length > 0) {
-                        if (password.length >= 8 && password.toLowerCase().endsWith('al')) {
-                            passwordHint.style.color = '#28a745'; // Verde
-                            passwordHint.textContent = '✓ Contraseña válida';
-                        } else {
-                            passwordHint.style.color = '#dc3545'; // Rojo
-                            passwordHint.textContent = 'Mínimo 8 caracteres y con terminación AL';
-                        }
-                    } else {
-                        passwordHint.style.color = '#dc3545';
-                        passwordHint.textContent = 'Mínimo 8 caracteres y con terminación AL';
-                    }
-                });
+            if (!validateEmptyFields()) {
+                return; 
             }
-
-            if(confirmPasswordInput) {
-                confirmPasswordInput.addEventListener('input', function() {
-                    const password = passwordInput.value;
-                    const confirmPassword = this.value;
-                    if (confirmPassword.length > 0) {
-                        this.style.borderColor = (password === confirmPassword) ? '#28a745' : '#dc3545';
-                    } else {
-                        this.style.borderColor = '#e0e0e0'; // Color por defecto
-                    }
-                });
+            if (!validatePasswords()) { // Esta función ahora valida todo
+                return; 
             }
+            
+            registerBtn.textContent = 'Registrando...';
+            registerBtn.disabled = true;
 
-            // --- MANEJO DEL ENVÍO DEL FORMULARIO ---
-            form.addEventListener('submit', function(e) {
-                e.preventDefault(); // Prevenir envío tradicional
-                
-                // Limpiar notificaciones previas
-                removeNotifications();
-                
-                // --- VALIDACIONES AL ENVIAR (Las que ya tenías) ---
-                if (!validateEmptyFields()) {
-                    return; // Detiene si faltan campos
-                }
-                if (!validatePasswords()) {
-                    return; // Detiene si las contraseñas no coinciden o no son válidas
-                }
-                
-                // Cambiar estado del botón a "cargando"
-                registerBtn.textContent = 'Registrando...';
-                registerBtn.disabled = true;
+            const datosRegistro = {
+                nombre: document.getElementById('nombre').value,
+                apellido: document.getElementById('apellido').value,
+                email: document.getElementById('email').value,
+                genero: document.querySelector('input[name="genero"]:checked').value,
+                carrera: document.getElementById('carrera').value,
+                contrasena: passwordInput.value,
+                confirmarContrasena: confirmPasswordInput.value
+            };
 
-                // --- RECOGER DATOS PARA LA API ---
-                const datosRegistro = {
-                    nombre: document.getElementById('nombre').value,
-                    apellido: document.getElementById('apellido').value,
-                    email: document.getElementById('email').value,
-                    genero: document.querySelector('input[name="genero"]:checked').value,
-                    carrera: document.getElementById('carrera').value,
-                    contrasena: passwordInput.value,
-                    confirmarContrasena: confirmPasswordInput.value // Aunque ya validamos, la enviamos por si acaso
-                };
-
-                // --- LLAMADA A LA API USANDO FETCH (JavaScript moderno) ---
-                fetch('../api/registrarAlumno.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(datosRegistro) // Convertir objeto a JSON
-                })
-                .then(response => response.json()) // Convertir la respuesta de la API a JSON
-                .then(data => {
-                    if (data.success) {
-                        // Éxito: Mostrar notificación, cambiar botón y redirigir
-                        showNotification(data.mensaje, 'success');
-                        registerBtn.textContent = '¡Registrado!';
-                        // registerBtn.disabled = true; // El botón ya está deshabilitado
-                        setTimeout(function() {
-                            window.location.href = 'login.php'; // Redirigir al login
-                        }, 2000); // Espera 2 segundos
-                    } else {
-                        // Error de lógica (ej. correo duplicado)
-                        showNotification(data.mensaje, 'error');
-                        // Restaurar botón
-                        registerBtn.textContent = 'Regístrate';
-                        registerBtn.disabled = false;
-                    }
-                })
-                .catch(error => {
-                    // Error de red o al procesar el JSON
-                    console.error('Error:', error);
-                    showNotification('Error de conexión. Inténtalo de nuevo.', 'error');
-                    // Restaurar botón
+            fetch('../api/registrarAlumno.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(datosRegistro)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.mensaje, 'success');
+                    registerBtn.textContent = '¡Registrado!';
+                    setTimeout(function() {
+                        window.location.href = 'login.php'; // Redirigir al login
+                    }, 2000); 
+                } else {
+                    showNotification(data.mensaje, 'error');
                     registerBtn.textContent = 'Regístrate';
                     registerBtn.disabled = false;
-                });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error de conexión. Inténtalo de nuevo.', 'error');
+                registerBtn.textContent = 'Regístrate';
+                registerBtn.disabled = false;
             });
-            
-            // --- FUNCIONES DE VALIDACIÓN (Las que ya tenías, ligeramente ajustadas) ---
-            function validateEmptyFields() {
-                const requiredFields = [
-                    { id: 'nombre', name: 'Nombre' }, { id: 'apellido', name: 'Apellido' },
-                    { id: 'email', name: 'Correo electrónico' }, { id: 'carrera', name: 'Carrera' },
-                    { id: 'password', name: 'Contraseña' }, { id: 'confirm_password', name: 'Confirmar Contraseña' }
-                ];
-                for (let field of requiredFields) {
-                    const element = document.getElementById(field.id);
-                    if (!element.value.trim()) {
-                        showNotification(`El campo "${field.name}" es obligatorio.`, 'error');
-                        element.focus();
-                        return false; // Indica que la validación falló
-                    }
+        });
+        
+        // --- FUNCIONES DE VALIDACIÓN ---
+        function validateEmptyFields() {
+            const requiredFields = [
+                { id: 'nombre', name: 'Nombre' }, { id: 'apellido', name: 'Apellido' },
+                { id: 'email', name: 'Correo electrónico' }, { id: 'carrera', name: 'Carrera' },
+                { id: 'password', name: 'Contraseña' }, { id: 'confirm_password', name: 'Confirmar Contraseña' }
+            ];
+            for (let field of requiredFields) {
+                const element = document.getElementById(field.id);
+                if (!element.value.trim()) {
+                    showNotification(`El campo "${field.name}" es obligatorio.`, 'error');
+                    element.focus();
+                    return false;
                 }
-                const genero = document.querySelector('input[name="genero"]:checked');
-                if (!genero) {
-                    showNotification('Por favor, selecciona tu género.', 'error');
-                    return false; // Indica que la validación falló
-                }
-                return true; // Indica que la validación pasó
             }
-            
-            function validatePasswords() {
-                const password = passwordInput.value;
-                const confirmPassword = confirmPasswordInput.value;
-                
-                if (password !== confirmPassword) {
-                    showNotification('Las contraseñas no coinciden.', 'error');
-                    confirmPasswordInput.focus();
-                    return false; // Falla
-                }
-                // Añadimos la validación de formato aquí también
-                if (password.length < 8 || !password.toLowerCase().endsWith('al')) {
-                     showNotification('La contraseña debe tener al menos 8 caracteres y terminar con "AL".', 'error');
-                     passwordInput.focus();
-                     return false; // Falla
-                }
-                return true; // Pasa
+            const genero = document.querySelector('input[name="genero"]:checked');
+            if (!genero) {
+                showNotification('Por favor, selecciona tu género.', 'error');
+                return false;
             }
+            return true;
+        }
+        
+        function validatePasswords() {
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
             
-            // --- FUNCIONES PARA NOTIFICACIONES (Las que ya tenías) ---
-            function showNotification(message, type) {
-                removeNotifications();
-                const notification = document.createElement('div');
-                notification.className = `notification ${type}`;
-                notification.innerHTML = `<div class="notification-bar"></div><span>${message}</span>`;
-                document.body.appendChild(notification);
-                setTimeout(() => { notification.remove(); }, 5000);
+            if (password !== confirmPassword) {
+                showNotification('Las contraseñas no coinciden.', 'error');
+                confirmPasswordInput.focus();
+                return false; // Falla
             }
 
-            function removeNotifications() {
-                document.querySelectorAll('.notification').forEach(notif => notif.remove());
+            // ✅ LÓGICA DE VALIDACIÓN ACTUALIZADA
+            const isLengthOk = password.length >= 8;
+            const hasSpecialChar = specialCharRegex.test(password);
+            const endsWithAl = password.toLowerCase().endsWith('al');
+
+            if (!isLengthOk || !hasSpecialChar || !endsWithAl) {
+                 showNotification('La contraseña debe tener 8+ carac, 1 especial y terminar con "AL".', 'error');
+                 passwordInput.focus();
+                 return false; // Falla
             }
-        });
-    </script>
+            return true; // Pasa
+        }
+        
+        // --- FUNCIONES PARA NOTIFICACIONES ---
+        function showNotification(message, type) {
+            removeNotifications();
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `<div class="notification-bar"></div><span>${message}</span>`;
+            // Tu HTML usa .register-card, así que lo insertamos antes del formulario
+            const form = document.querySelector('.register-form');
+            form.parentNode.insertBefore(notification, form);
+            
+            setTimeout(() => { notification.remove(); }, 5000);
+        }
+
+        function removeNotifications() {
+             // Tu HTML muestra notificaciones que vienen de PHP (?error=), las borramos también
+            document.querySelectorAll('.notification').forEach(notif => notif.remove());
+        }
+    });
+</script>
 </body>
 </html>

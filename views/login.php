@@ -6,6 +6,9 @@
     <title>Plataforma de Encuestas Estudiantiles - Login</title>
     <link rel="stylesheet" href="../css/style.css">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
     <div class="container">
@@ -17,23 +20,7 @@
             </div>
             <h1 class="title">Plataforma de Encuestas Estudiantiles</h1>
             
-            <!-- Notificación de éxito -->
-            <?php if (isset($_GET['success']) && $_GET['success'] == 'login'): ?>
-                <div class="notification success">
-                    <div class="notification-bar"></div>
-                    <span>Inicio de sesión exitoso</span>
-                </div>
-            <?php endif; ?>
-            
-            <!-- Notificación de error -->
-            <?php if (isset($_GET['error'])): ?>
-                <div class="notification error">
-                    <div class="notification-bar"></div>
-                    <span><?php echo htmlspecialchars($_GET['error']); ?></span>
-                </div>
-            <?php endif; ?>
-            
-            <form action="../api/login.php" method="POST" class="login-form" id="loginForm">
+            <form class="login-form" id="loginForm">
                 <div class="form-group">
                     <label for="email">Correo Electrónico</label>
                     <input type="email" id="email" name="email" placeholder="Ingresa tu correo electrónico" required>
@@ -62,97 +49,97 @@
     </div>
     
    <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const loginBtn = document.querySelector('.login-btn');
-    const form = document.getElementById('loginForm');
-    const emailInput = document.getElementById('email');
-    const passwordInput = document.getElementById('password');
-    const eyeIcon = document.querySelector('.eye-icon');
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('loginForm');
+        const passwordInput = document.getElementById('password');
+        const eyeIcon = document.querySelector('.eye-icon');
 
-    // --- Lógica para el Ojo de la Contraseña ---
-    if (eyeIcon) {
-        eyeIcon.addEventListener('click', function() {
-            const isPassword = passwordInput.type === 'password';
-            passwordInput.type = isPassword ? 'text' : 'password';
-            this.textContent = isPassword ? '🙈' : '👁'; // Cambia el icono (puedes usar clases de Font Awesome si prefieres)
+        // --- Configuración del "Toast" ---
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.onmouseenter = Swal.stopTimer;
+                toast.onmouseleave = Swal.resumeTimer;
+            }
         });
-    }
 
-    // --- Lógica de Envío del Formulario ---
-    form.addEventListener('submit', function(e) {
-        e.preventDefault(); // Evitar envío tradicional
+        // --- Lógica para el Ojo de la Contraseña ---
+        if (eyeIcon) {
+            eyeIcon.addEventListener('click', function() {
+                const isPassword = passwordInput.type === 'password';
+                passwordInput.type = isPassword ? 'text' : 'password';
+                this.textContent = isPassword ? '🙈' : '👁';
+            });
+        }
 
-        // Mostrar estado de carga en el botón
-        loginBtn.textContent = 'Iniciando...';
-        loginBtn.disabled = true;
+        // --- Lógica de Envío del Formulario ---
+        form.addEventListener('submit', function(e) {
+            e.preventDefault(); 
+            const loginBtn = document.querySelector('.login-btn');
+            
+            loginBtn.textContent = 'Iniciando...';
+            loginBtn.disabled = true;
 
-        const email = emailInput.value;
-        const contrasena = passwordInput.value;
+            const email = document.getElementById('email').value;
+            const contrasena = document.getElementById('password').value;
 
-        // Limpiar notificaciones previas
-        removeNotifications();
+            $.ajax({
+                url: '../api/login.php',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ email: email, contrasena: contrasena }),
+                success: function(response) {
+                    if (response.success) {
+                        
+                        // --- ❌ LÓGICA DE 'accion_requerida' ELIMINADA ---
+                        // El dashboard se encargará de esto ahora.
 
-        // --- Llamada AJAX con jQuery ---
-        $.ajax({
-            url: '../api/login.php',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ email: email, contrasena: contrasena }),
-            success: function(response) {
-                if (response.success) {
-                    // Éxito: Cambiar botón, mostrar notificación y redirigir
-                    loginBtn.classList.add('success'); // Asegúrate de tener CSS para .success si quieres el cambio de color
-                    loginBtn.textContent = '¡Login Exitoso!';
-                    showNotification(response.mensaje, 'success');
-
-                    // Guardar datos en localStorage
-                    localStorage.setItem('usuario', JSON.stringify(response.usuario));
-
-                    // Redirección con delay
-                    setTimeout(function() {
-                        if (response.accion_requerida === 'cambiar_contrasena') {
-                            window.location.href = 'cambiar-contrasena.php';
-                        } else if (response.usuario.rol === 'admin') {
-                            window.location.href = 'admin-panel.php';
-                        } else {
-                            window.location.href = 'dashboard.php';
+                        // Redirección por ROL
+                        let destino = 'dashboard_general.php'; // Destino por defecto
+                        if (response.usuario.rol === 'admin') {
+                            destino = 'dashboard_admin.php';
                         }
-                    }, 1500); // Espera 1.5 segundos
+                        
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Login Exitoso!',
+                            text: 'Bienvenido, ' + response.usuario.nombre,
+                            timer: 1500,
+                            showConfirmButton: false
+                        }).then(() => {
+                            window.location.href = destino;
+                        });
 
-                } else {
-                    // Error de lógica (ej. credenciales incorrectas)
-                    showNotification(response.mensaje, 'error');
-                    // Restaurar botón
+                    } else {
+                        // Error de lógica
+                        Toast.fire({
+                            icon: 'error',
+                            title: response.mensaje
+                        });
+                        loginBtn.textContent = 'Iniciar Sesión';
+                        loginBtn.disabled = false;
+                    }
+                },
+                error: function(jqXHR) {
+                    // Error de conexión
+                    let errorMsg = 'Error de conexión. Inténtalo de nuevo.';
+                    if(jqXHR.responseJSON && jqXHR.responseJSON.mensaje){
+                        errorMsg = jqXHR.responseJSON.mensaje;
+                    }
+                    Toast.fire({ 
+                        icon: 'error', 
+                        title: errorMsg 
+                    });
                     loginBtn.textContent = 'Iniciar Sesión';
                     loginBtn.disabled = false;
                 }
-            },
-            error: function() {
-                // Error de conexión o del servidor
-                showNotification('Error de conexión. Inténtalo de nuevo.', 'error');
-                // Restaurar botón
-                loginBtn.textContent = 'Iniciar Sesión';
-                loginBtn.disabled = false;
-            }
+            });
         });
     });
-
-    // --- Funciones para Notificaciones (las que ya tenías) ---
-    function showNotification(message, type) {
-        removeNotifications();
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`; // Asegúrate que tu CSS defina .notification y .success/.error
-        notification.innerHTML = `<div class="notification-bar"></div><span>${message}</span>`;
-        // Insertar antes del formulario, por ejemplo
-        form.parentNode.insertBefore(notification, form);
-        setTimeout(() => { notification.remove(); }, 5000);
-    }
-
-    function removeNotifications() {
-        const existingNotifications = document.querySelectorAll('.notification');
-        existingNotifications.forEach(notif => notif.remove());
-    }
-});
 </script>
 </body>
 </html>

@@ -36,10 +36,29 @@ class UsuarioController {
             return ['estado' => 400, 'success' => false, 'mensaje' => 'Las contraseñas no coinciden.'];
         }
 
-        // Validación de complejidad de contraseña (mínimo 8 chars, termina en AL)
-        if (strlen($datos['contrasena']) < 8 || !preg_match('/AL$/', $datos['contrasena'])) {
-            return ['estado' => 400, 'success' => false, 'mensaje' => 'La contraseña debe tener al menos 8 caracteres y terminar con "AL".'];
+        // --- ✅ INICIO DE VALIDACIÓN DE CONTRASEÑA ACTUALIZADA ---
+        $contrasena = $datos['contrasena'];
+        $mensajeError = '';
+
+        // 1. Mínimo 8 caracteres
+        if (strlen($contrasena) < 8) {
+            $mensajeError = 'La contraseña debe tener al menos 8 caracteres.';
         }
+        // 2. Termina en AL (case-insensitive para ser robusto)
+        else if (!preg_match('/AL$/i', $contrasena)) { 
+            $mensajeError = 'La contraseña debe terminar con "AL".';
+        }
+        // 3. Un caracter especial
+        else if (!preg_match('/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+/', $contrasena)) {
+            $mensajeError = 'La contraseña debe contener al menos un caracter especial (ej. !@#$%).';
+        }
+
+        // Si hay algún error, devolverlo
+        if (!empty($mensajeError)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => $mensajeError];
+        }
+        // --- ✅ FIN DE VALIDACIÓN DE CONTRASEÑA ---
+
 
         // Verificar si el email ya existe
         if ($this->modeloUsuario->findByEmail($datos['email'])) {
@@ -73,10 +92,24 @@ class UsuarioController {
             return ['estado' => 400, 'success' => false, 'mensaje' => 'El formato del correo no es válido.'];
         }
 
-        // Validación de contraseña (igual que alumnos)
-        if (strlen($datos['contrasena']) < 8 || !preg_match('/AL$/', $datos['contrasena'])) {
-            return ['estado' => 400, 'success' => false, 'mensaje' => 'La contraseña debe tener al menos 8 caracteres y terminar con "AL".'];
+        // --- ✅ INICIO DE VALIDACIÓN DE CONTRASEÑA ACTUALIZADA ---
+        $contrasena = $datos['contrasena'];
+        $mensajeError = '';
+
+        if (strlen($contrasena) < 8) {
+            $mensajeError = 'La contraseña debe tener al menos 8 caracteres.';
         }
+        else if (!preg_match('/AL$/i', $contrasena)) { 
+            $mensajeError = 'La contraseña debe terminar con "AL".';
+        }
+        else if (!preg_match('/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+/', $contrasena)) {
+            $mensajeError = 'La contraseña debe contener al menos un caracter especial (ej. !@#$%).';
+        }
+
+        if (!empty($mensajeError)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => $mensajeError];
+        }
+        // --- ✅ FIN DE VALIDACIÓN DE CONTRASEÑA ---
 
         // Verificar si el email ya existe
         if ($this->modeloUsuario->findByEmail($datos['email'])) {
@@ -294,10 +327,28 @@ class UsuarioController {
             return ['estado' => 400, 'success' => false, 'mensaje' => 'Las contraseñas no coinciden.'];
         }
 
-        // Validar nueva contraseña (igual que en registro)
-        if (strlen($datos['nueva_contrasena']) < 8 || !preg_match('/AL$/', $datos['nueva_contrasena'])) {
-            return ['estado' => 400, 'success' => false, 'mensaje' => 'La nueva contraseña debe tener al menos 8 caracteres y terminar con "AL".'];
+        // --- ✅ INICIO DE VALIDACIÓN DE CONTRASEÑA ACTUALIZADA ---
+        $contrasena = $datos['nueva_contrasena'];
+        $mensajeError = '';
+
+        // 1. Mínimo 8 caracteres
+        if (strlen($contrasena) < 8) {
+            $mensajeError = 'La contraseña debe tener al menos 8 caracteres.';
         }
+        // 2. Termina en AL (case-insensitive)
+        else if (!preg_match('/AL$/i', $contrasena)) { 
+            $mensajeError = 'La contraseña debe terminar con "AL".';
+        }
+        // 3. Un caracter especial
+        else if (!preg_match('/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+/', $contrasena)) {
+            $mensajeError = 'La contraseña debe contener al menos un caracter especial (ej. !@#$%).';
+        }
+
+        // Si hay algún error, devolverlo
+        if (!empty($mensajeError)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => $mensajeError];
+        }
+        // --- ✅ FIN DE VALIDACIÓN DE CONTRASEÑA ---
 
         // Buscar el usuario por el token (que ya valida la expiración)
         $usuario = $this->modeloUsuario->buscarPorResetToken($datos['token']);
@@ -311,6 +362,51 @@ class UsuarioController {
             }
         } else {
             return ['estado' => 400, 'success' => false, 'mensaje' => 'Token inválido o expirado. Solicita un nuevo enlace.'];
+        }
+    }
+
+    /**
+     * Procesa el cambio de contraseña para un usuario ya logueado (ej. temporal).
+     * No usa token, usa la sesión.
+     */
+    public function cambiarContrasenaLogueado($datos) {
+        // Validar campos
+        if (empty($datos['id_usuario']) || empty($datos['nueva_contrasena']) || empty($datos['confirmar_contrasena'])) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'Todos los campos son requeridos.'];
+        }
+
+        if ($datos['nueva_contrasena'] !== $datos['confirmar_contrasena']) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'Las contraseñas no coinciden.'];
+        }
+        
+        // --- VALIDACIÓN DE CONTRASEÑA (la misma que usamos en registro) ---
+        $contrasena = $datos['nueva_contrasena'];
+        $mensajeError = '';
+
+        if (strlen($contrasena) < 8) {
+            $mensajeError = 'La contraseña debe tener al menos 8 caracteres.';
+        }
+        else if (!preg_match('/AL$/i', $contrasena)) { 
+            $mensajeError = 'La contraseña debe terminar con "AL".';
+        }
+        else if (!preg_match('/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+/', $contrasena)) {
+            $mensajeError = 'La contraseña debe contener al menos un caracter especial (ej. !@#$%).';
+        }
+
+        if (!empty($mensajeError)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => $mensajeError];
+        }
+        // --- FIN VALIDACIÓN ---
+
+        // Hashear y guardar
+        $hash = password_hash($contrasena, PASSWORD_DEFAULT);
+        
+        // Usamos la función del MODELO existente 'updatePassword'
+        // (ya que esa función también pone password_temporal = FALSE)
+        if ($this->modeloUsuario->updatePassword($datos['id_usuario'], $hash) > 0) {
+            return ['estado' => 200, 'success' => true, 'mensaje' => 'Contraseña actualizada con éxito.'];
+        } else {
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al actualizar la contraseña.'];
         }
     }
 }

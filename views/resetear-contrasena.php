@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plataforma de Encuestas Estudiantiles - Restablecer Contraseña</title>
-    <link rel="stylesheet" href="../css/style.css">
+    
+    <link rel="stylesheet" href="../css/style.css"> 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
@@ -17,8 +18,6 @@
         .toggle-password { position: absolute; right: 15px; cursor: pointer; color: #6b7c80; }
         .password-hint { font-size: 0.85em; color: #ef4444; margin-top: -15px; margin-bottom: 15px; text-align: left; }
         .password-hint.valid { color: #16a34a; }
-        
-        /* ❌ ELIMINADO: Ya no necesitamos los estilos para #mensaje */
     </style>
 </head>
 <body>
@@ -36,7 +35,9 @@
             <form id="resetForm" class="recovery-form">
                 <div class="form-group">
                     <label for="nueva_contrasena">Nueva Contraseña</label>
-                    <div class="password-hint">*Mínimo 8 caracteres y con terminación AL</div>
+                    
+                    <div class="password-hint">*Mínimo 8 carac, 1 especial (ej. !@#$) y terminar con AL</div>
+
                     <div class="password-wrapper">
                         <input type="password" id="nueva_contrasena" placeholder="Ingresa tu nueva contraseña" required>
                         <i class="fa-solid fa-eye toggle-password"></i>
@@ -57,7 +58,6 @@
 <script>
 $(document).ready(function() {
 
-    // Configuración del "Toast" (notificación pequeña)
     const Toast = Swal.mixin({
         toast: true,
         position: 'top-end',
@@ -70,44 +70,47 @@ $(document).ready(function() {
         }
     });
     
-    // Lógica para el ojo de contraseña (sin cambios)
     $('.toggle-password').on('click', function() {
         $(this).toggleClass('fa-eye fa-eye-slash');
         const input = $(this).prev('input');
         input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
     });
 
-    // Validador en vivo (sin cambios)
+    // --- ✅ INICIO DE LÓGICA DE VALIDACIÓN ACTUALIZADA ---
+    const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
+    const hintText = '*Mínimo 8 carac, 1 especial (ej. !@#$) y terminar con AL';
+
     $('#nueva_contrasena').on('keyup', function() {
         const password = $(this).val();
         const hint = $(this).closest('.form-group').find('.password-hint');
+        
         const isLengthOk = password.length >= 8;
-        const isAlOk = password.endsWith('AL');
-        if (isLengthOk && isAlOk) {
+        const hasSpecialChar = specialCharRegex.test(password);
+        const isAlOk = password.toLowerCase().endsWith('al'); // Usamos toLowerCase por si acaso
+
+        if (isLengthOk && hasSpecialChar && isAlOk) {
             hint.text('Contraseña válida');
             hint.addClass('valid');
         } else {
-            hint.text('*Mínimo 8 caracteres y con terminación AL');
+            hint.text(hintText);
             hint.removeClass('valid');
         }
     });
+    // --- ✅ FIN DE LÓGICA DE VALIDACIÓN ---
 
-    // 1. Extraer el token de la URL
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
 
     if (!token) {
-        // Error grave: Mostramos un MODAL (ventana grande)
         Swal.fire({
             icon: 'error',
             title: 'Error de Token',
             text: 'Token inválido o no encontrado. Solicita un nuevo enlace.',
-            allowOutsideClick: false // Impide cerrar la alerta haciendo clic fuera
+            allowOutsideClick: false
         });
-        $('#resetForm').hide(); // Ocultar formulario
+        $('#resetForm').hide();
     }
 
-    // 2. Manejar el envío del formulario
     $('#resetForm').on('submit', function(e) {
         e.preventDefault();
         const submitBtn = $('.verify-btn');
@@ -116,19 +119,24 @@ $(document).ready(function() {
         const nuevaContrasena = $('#nueva_contrasena').val();
         const confirmarContrasena = $('#confirmar_contrasena').val();
 
-        // Validaciones (ahora usan Toasts)
         if (nuevaContrasena !== confirmarContrasena) {
             Toast.fire({ icon: 'error', title: 'Las contraseñas no coinciden.' });
             submitBtn.text('Guardar Contraseña').prop('disabled', false);
             return;
         }
-        if (nuevaContrasena.length < 8 || !nuevaContrasena.endsWith('AL')) {
-            Toast.fire({ icon: 'error', title: 'La contraseña debe tener al menos 8 caracteres y terminar con "AL".' });
+
+        // --- ✅ INICIO DE VALIDACIÓN DE ENVÍO ACTUALIZADA ---
+        const isLengthOk = nuevaContrasena.length >= 8;
+        const hasSpecialChar = specialCharRegex.test(nuevaContrasena);
+        const isAlOk = nuevaContrasena.toLowerCase().endsWith('al');
+
+        if (!isLengthOk || !hasSpecialChar || !isAlOk) {
+            Toast.fire({ icon: 'error', title: 'La contraseña debe tener 8+ carac, 1 especial y terminar con "AL".' });
             submitBtn.text('Guardar Contraseña').prop('disabled', false);
             return;
         }
+        // --- ✅ FIN DE VALIDACIÓN DE ENVÍO ---
 
-        // Llamada a la API para resetear
         $.ajax({
             url: '../api/resetearContrasena.php',
             method: 'POST',
@@ -140,25 +148,22 @@ $(document).ready(function() {
             }),
             success: function(response) {
                 if (response.success) {
-                    // Éxito: Mostramos MODAL y luego redirigimos
                     $('#resetForm').hide();
                     Swal.fire({
                         icon: 'success',
                         title: response.mensaje,
                         text: 'Redirigiendo al inicio de sesión...',
-                        timer: 2500, // 2.5 segundos
+                        timer: 2500,
                         showConfirmButton: false
                     }).then(() => {
                         window.location.href = 'login.php';
                     });
                 } else {
-                    // Error de la API (ej. token expirado)
                     Toast.fire({ icon: 'error', title: response.mensaje });
                     submitBtn.text('Guardar Contraseña').prop('disabled', false);
                 }
             },
             error: function() {
-                // Error de conexión
                 Toast.fire({ icon: 'error', title: 'Error de conexión. Inténtalo de nuevo.' });
                 submitBtn.text('Guardar Contraseña').prop('disabled', false);
             }
@@ -166,5 +171,6 @@ $(document).ready(function() {
     });
 });
 </script>
+
 </body>
 </html>
