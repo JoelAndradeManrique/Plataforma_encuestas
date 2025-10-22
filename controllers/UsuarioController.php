@@ -236,7 +236,6 @@ class UsuarioController {
             return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al eliminar el usuario.', 'error_db' => $this->conexion->error];
         }
     }
-
     /**
      * Procesa la solicitud de recuperación de contraseña.
      */
@@ -247,19 +246,31 @@ class UsuarioController {
 
         // Verificar si el usuario existe
         $usuario = $this->modeloUsuario->findByEmail($datos['email']);
+        
+        // --- ✅ BLOQUE MODIFICADO ---
+        // Ahora devuelve un error 404 (No Encontrado) y 'success: false'
+        // si el usuario no es encontrado.
         if (!$usuario) {
-            // Mensaje genérico por seguridad (aunque podrías cambiarlo si prefieres)
-            return ['estado' => 200, 'success' => true, 'mensaje' => 'Si tu correo está registrado, recibirás un enlace para recuperar tu contraseña.'];
+            return [
+                'estado' => 404, 
+                'success' => false, 
+                'mensaje' => 'No existe un registro con ese correo.'
+            ];
         }
+        // --- FIN DEL BLOQUE MODIFICADO ---
 
         // Generar token y expiración (1 hora)
         $token = bin2hex(random_bytes(32));
         $expiracion = date('Y-m-d H:i:s', time() + 3600);
 
         if ($this->modeloUsuario->guardarResetToken($datos['email'], $token, $expiracion)) {
-            // Simulamos el envío del enlace devolviéndolo en la respuesta
-            // Asegúrate de que la ruta a tu futuro archivo frontend sea correcta
-            $linkRecuperacion = "http://localhost/plataformaEncuestas/api/resetearContrasena.php?token=" . $token;
+            
+            // --- ✅ AJUSTE IMPORTANTE ---
+            // El enlace debe apuntar a tu PÁGINA DE FRONTEND (la vista), 
+            // no a la API de reseteo.
+            // Asegúrate de que esta URL coincida con la ruta a tu archivo HTML/PHP de "resetear".
+            $linkRecuperacion = "http://localhost/plataformaEncuestas/views/resetear-contrasena.php?token=" . $token;
+            
             return [
                 'estado' => 200,
                 'success' => true,
