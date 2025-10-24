@@ -14,11 +14,17 @@
     <div class="container">
         <div class="login-card">
             <div class="icon-container">
+                <!-- Opción 1: Usar una imagen -->
+              <img src="../img/images.png" alt="Logo Plataforma" class="logo-image">
+                
+                <!-- Opción 2: Icono CSS (comentado para usar imagen) -->
+                <!-- 
                 <div class="clipboard-icon">
                     <div class="check-icon"></div>
                 </div>
+                -->
             </div>
-            <h1 class="title">Plataforma de Encuestas Estudiantiles</h1>
+            <h1 class="title">Sistema de Tickets</h1>
             
             <form class="login-form" id="loginForm">
                 <div class="form-group">
@@ -72,7 +78,7 @@
             eyeIcon.addEventListener('click', function() {
                 const isPassword = passwordInput.type === 'password';
                 passwordInput.type = isPassword ? 'text' : 'password';
-                this.textContent = isPassword ? '🙈' : '👁';
+                this.textContent = isPassword ? '🙉' : '🙈';
             });
         }
 

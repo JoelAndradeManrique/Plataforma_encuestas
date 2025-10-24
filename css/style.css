@@ -15,6 +15,20 @@ body {
     padding: 20px;
 }
 
+/* Estilos para imagen logo */
+.logo-image {
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+    border-radius: 6px;
+    transition: transform 0.3s ease;
+}
+
+.logo-image:hover {
+    transform: scale(1.05);
+}
+
+
 .container {
     width: 100%;
     max-width: 450px;
