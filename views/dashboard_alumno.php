@@ -133,14 +133,15 @@ $(function(){
 
 
  // Renderizar tarjetas de encuestas (Modificado para botón dinámico)
+  // Renderizar tarjetas de encuestas (Modificado para botón unificado y data-modo)
   function renderEncuestas(list){
     const $grid=$("#encuestas-grid").empty();
-    if (list.length === 0 && $("#filtroBusqueda").val()) { // Mostrar mensaje si no hay resultados de búsqueda
-        $grid.html('<p class="grid-vacia">No se encontraron encuestas con los filtros aplicados.</p>');
-        return; // Salir temprano si no hay nada que renderizar después de filtrar
-    } else if (list.length === 0) { // Mostrar mensaje si no hay encuestas en general
-         $grid.html('<p class="grid-vacia">No hay encuestas disponibles en este momento.</p>');
-         return;
+    const respondidasAnon = JSON.parse(localStorage.getItem('encuestasAnonRespondidas') || '{}');
+
+    if (list.length === 0 && $("#filtroBusqueda").val()) {
+        $grid.html('<p class="grid-vacia">No se encontraron encuestas con los filtros aplicados.</p>'); return;
+    } else if (list.length === 0) {
+         $grid.html('<p class="grid-vacia">No hay encuestas disponibles en este momento.</p>'); return;
     }
 
     list.forEach(e=>{
@@ -149,13 +150,18 @@ $(function(){
       const icon=vis==="Identificada"?'<i class="fa-solid fa-file-signature"></i>':'<i class="fa-solid fa-user-secret"></i>';
       const fechaFormateada = new Date(e.fecha_creacion).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 
-      // --- ✅ Lógica del Botón Dinámico ---
+      // --- ✅ Lógica del Botón Actualizada ---
       let botonHtml = '';
-      if (e.ya_respondida) {
-          // Si ya respondió, mostrar botón "Ver mis respuestas"
-          botonHtml = `<button class="btn-ver" data-id="${id}">Ver mis respuestas</button>`;
+      const respondidaIdentificado = e.ya_respondida; // Viene del backend
+      const respondidaAnonimoLocal = respondidasAnon[id] === true; // Viene de localStorage
+
+      // Si respondió de CUALQUIER forma, mostrar "Ver mis respuestas"
+      if (respondidaIdentificado || respondidaAnonimoLocal) {
+          // Guardamos cómo respondió para saber qué mostrar al hacer clic
+          const modoRespuesta = respondidaIdentificado ? 'identificado' : 'anonimo';
+          botonHtml = `<button class="btn-ver" data-id="${id}" data-modo="${modoRespuesta}">Ver mis respuestas</button>`;
       } else {
-          // Si no ha respondido, mostrar botón "Responder encuesta"
+          // Si no ha respondido, mostrar botón normal
           botonHtml = `<button class="btn-encuesta" data-id="${id}">Responder encuesta</button>`;
       }
       // --- Fin Lógica Botón ---
@@ -165,16 +171,27 @@ $(function(){
         <header><h3>${e.titulo}</h3><p>${e.descripcion || 'Sin descripción'}</p></header>
         <p class="meta">${icon} ${vis} ${e.visibilidad === 'identificada' ? ' - ' + (e.encuestador_nombre || 'Encuestador') : ''}</p>
         <p class="fecha"><i class="fa-solid fa-calendar-days"></i> ${fechaFormateada}</p>
-        <footer>${botonHtml}</footer> </article>`;
+        <footer>${botonHtml}</footer>
+      </article>`;
       $grid.append(card);
     });
   }
-
   // Ir a responder encuesta
   $(document).on("click",".btn-encuesta",function(){
-    const id=$(this).data("id");
-    // Aquí puedes añadir la lógica para preguntar si quiere responder anónimo o no
-    Swal.fire({
+    const idEncuesta=$(this).data("id");
+
+    // --- ✅ Leer contador anónimo desde localStorage ---
+    let anonCount = 0;
+    try {
+        const respondidasAnonCounts = JSON.parse(localStorage.getItem('encuestasAnonCounts') || '{}');
+        anonCount = respondidasAnonCounts[idEncuesta] || 0; // Obtener el conteo o 0 si no existe
+    } catch(e) {
+        console.error("Error leyendo contador anónimo de localStorage:", e);
+    }
+    // --- Fin Lectura ---
+
+    // --- ✅ Adaptar el diálogo basado en el contador ---
+    let swalOptions = {
         title: '¿Cómo deseas responder?',
         text: 'Puedes responder con tu nombre o de forma anónima (si la encuesta lo permite).',
         icon: 'question',
@@ -182,11 +199,28 @@ $(function(){
         confirmButtonText: 'Identificado',
         cancelButtonText: 'Anónimo',
         reverseButtons: true
-    }).then((result) => {
+    };
+
+    // Si ya alcanzó el límite anónimo, modificar el botón Cancelar
+    if (anonCount >= 2) {
+        swalOptions.cancelButtonText = 'Límite Anónimo Alcanzado';
+        // Opcional: Deshabilitar el botón (aunque Swal no lo soporta directamente, el texto sirve de aviso)
+        // Podemos añadir una nota en el 'text'
+        swalOptions.text += '\n\n(Has alcanzado el límite de 2 respuestas anónimas para esta encuesta desde este navegador).';
+    }
+    // --- Fin Adaptación ---
+
+    Swal.fire(swalOptions).then((result) => {
+        // Si hizo clic en Cancelar (Anónimo) PERO ya había alcanzado el límite, no hacer nada
+        if (!result.isConfirmed && anonCount >= 2) {
+            // Opcional: Mostrar un toast rápido
+            Toast.fire({icon: 'warning', title: 'Límite de respuestas anónimas alcanzado.'});
+            return; // No redirigir
+        }
+
+        // Si eligió Identificado o eligió Anónimo (y aún no alcanza el límite)
         let modo = result.isConfirmed ? 'identificado' : 'anonimo';
-        // Redirigir pasando el modo como parámetro (o guardarlo en sessionStorage)
-        window.location.href = `responder_encuesta.php?id=${id}&modo=${modo}`;
-        // Nota: la página responder_encuesta.php deberá leer este parámetro 'modo'
+        window.location.href = `responder_encuesta.php?id=${idEncuesta}&modo=${modo}`;
     });
   });
 
@@ -238,43 +272,53 @@ $(function(){
     });
   }
 
-  /* === Modal Ver Respuestas - Llamada a API === */
+  /* === Modal Ver Respuestas - Lógica Actualizada === */
   $(document).on("click",".btn-ver",function(){
     const idEncuesta = $(this).data("id");
+    const modoRespuesta = $(this).data("modo"); // Leer cómo se respondió
 
-    Swal.fire({
-        title: 'Cargando tus respuestas...',
-        didOpen: () => { Swal.showLoading(); }
-    });
+    if (modoRespuesta === 'identificado') {
+        // --- Si fue identificado, llamar a la API ---
+        Swal.fire({
+            title: 'Cargando tus respuestas...',
+            didOpen: () => { Swal.showLoading(); }
+        });
 
-    $.ajax({
-        url: `../api/obtenerMisRespuestas.php?id_encuesta=${idEncuesta}`,
-        method: 'GET',
-        dataType: 'json',
-        success: function(response) {
-            if (response.success && response.respuestas_alumno) {
-                let html = "<ul style='text-align:left; list-style:none; padding:0; max-height: 400px; overflow-y: auto;'>";
-                response.respuestas_alumno.forEach(r=>{
-                  html += `<li style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee;"><strong>${r.pregunta}</strong><br>${r.respuesta_dada || '<em>No respondida</em>'}</li>`;
-                });
-                html += "</ul>";
+        $.ajax({
+            url: `../api/obtenerMisRespuestas.php?id_encuesta=${idEncuesta}`,
+            method: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if (response.success && response.respuestas_alumno) {
+                    let html = "<ul style='text-align:left; list-style:none; padding:0; max-height: 400px; overflow-y: auto;'>";
+                    response.respuestas_alumno.forEach(r=>{
+                      html += `<li style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee;"><strong>${r.pregunta}</strong><br>${r.respuesta_dada || '<em>No respondida</em>'}</li>`;
+                    });
+                    html += "</ul>";
 
-                Swal.update({ // Actualizar modal existente
-                   title: "📋 Mis respuestas",
-                   html: html,
-                   icon: undefined, // Quitar icono de carga
-                   showConfirmButton: true,
-                   confirmButtonText: "Cerrar",
-                   confirmButtonColor: "#3b65f1"
-                });
-            } else {
-                Swal.fire("Sin respuestas", response.mensaje || "No se encontraron respuestas identificadas para esta encuesta.", "warning");
+                    Swal.update({
+                       title: "📋 Mis respuestas", html: html, icon: undefined,
+                       showConfirmButton: true, confirmButtonText: "Cerrar", confirmButtonColor: "#3b65f1"
+                    });
+                } else {
+                    // La API falló o no encontró respuestas (raro si ya_respondida era true)
+                    Swal.fire("Error", response.mensaje || "No se pudieron cargar tus respuestas identificadas.", "warning");
+                }
+            },
+            error: function() {
+                Swal.fire("Error", "Error de conexión al buscar tus respuestas.", "error");
             }
-        },
-        error: function() {
-            Swal.fire("Error", "No se pudieron cargar tus respuestas. Inténtalo de nuevo.", "error");
-        }
-    });
+        });
+    } else {
+        // --- Si fue anónimo, mostrar mensaje directo ---
+        Swal.fire({
+            title: 'Respuesta Anónima',
+            text: 'Respondiste esta encuesta de forma anónima, por lo que no es posible mostrar tus respuestas individuales.',
+            icon: 'info',
+            confirmButtonText: "Entendido",
+            confirmButtonColor: "#3b65f1"
+        });
+    }
   });
 
   /* === Cambiar contraseña (SweetAlert) === */
