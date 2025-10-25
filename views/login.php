@@ -108,6 +108,8 @@
                         let destino = 'dashboard_general.php'; // Destino por defecto
                         if (response.usuario.rol === 'admin') {
                             destino = 'dashboard_admin.php';
+                        } else if (response.usuario.rol === 'alumno') {
+                            destino = 'dashboard_alumno.php';
                         }
                         
                         Swal.fire({
