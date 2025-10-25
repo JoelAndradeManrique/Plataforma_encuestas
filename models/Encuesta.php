@@ -293,5 +293,248 @@ class Encuesta {
 
         return $resultados;
     }
+
+    /**
+     * OBTIENE ENCUESTAS PÚBLICAS (PARA ALUMNOS)
+     * Busca y devuelve todas las encuestas que están 'publicada'.
+     * También trae el nombre del encuestador si la encuesta no es anónima.
+     * @return array Un array con las encuestas públicas.
+     */
+    public function getPublicas() {
+        // Unimos con Usuarios para obtener el nombre del encuestador
+        // Si la visibilidad es 'identificada', mostramos el nombre, si no, mostramos 'Anónimo'
+        $query = "SELECT 
+                    e.id_encuesta, e.titulo, e.descripcion, e.visibilidad, e.fecha_creacion,
+                    CASE 
+                        WHEN e.visibilidad = 'identificada' THEN CONCAT(u.nombre, ' ', u.apellido)
+                        ELSE 'Anónimo'
+                    END AS encuestador_nombre
+                  FROM encuestas e
+                  JOIN usuarios u ON e.id_encuestador = u.id_usuario
+                  WHERE e.estado = 'publicada'
+                  ORDER BY e.fecha_creacion DESC";
+        
+        $stmt = $this->conexion->prepare($query);
+        $stmt->execute();
+        
+        $resultado = $stmt->get_result();
+        $encuestas = $resultado->fetch_all(MYSQLI_ASSOC);
+        
+        $stmt->close();
+        return $encuestas;
+    }
+
+    /**
+     * OBTIENE DETALLE DE ENCUESTA (PARA ALUMNOS)
+     * Obtiene una sola encuesta, sus preguntas y sus opciones (sin resultados).
+     * @param int $id_encuesta El ID de la encuesta.
+     * @return array|null Los datos de la encuesta, o null si no es pública.
+     */
+    public function getDetallePublico($id_encuesta) {
+        // 1. Obtener la encuesta (solo si está 'publicada')
+        $query_encuesta = "SELECT id_encuesta, titulo, descripcion, visibilidad FROM encuestas 
+                           WHERE id_encuesta = ? AND estado = 'publicada'";
+        $stmt_encuesta = $this->conexion->prepare($query_encuesta);
+        $stmt_encuesta->bind_param("i", $id_encuesta);
+        $stmt_encuesta->execute();
+        $encuesta = $stmt_encuesta->get_result()->fetch_assoc();
+        $stmt_encuesta->close();
+
+        if (!$encuesta) {
+            return null; // No se encontró o no está publicada
+        }
+
+        // 2. Obtener las preguntas
+        $query_preguntas = "SELECT id_pregunta, texto_pregunta, tipo_pregunta, orden 
+                            FROM preguntas 
+                            WHERE id_encuesta = ? ORDER BY orden ASC";
+        $stmt_preguntas = $this->conexion->prepare($query_preguntas);
+        $stmt_preguntas->bind_param("i", $id_encuesta);
+        $stmt_preguntas->execute();
+        $preguntas = $stmt_preguntas->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt_preguntas->close();
+
+        // 3. Obtener las opciones para cada pregunta
+        $query_opciones = "SELECT id_opcion, texto_opcion, valor_escala 
+                           FROM opciones 
+                           WHERE id_pregunta = ?";
+        $stmt_opciones = $this.conexion->prepare($query_opciones);
+
+        $preguntas_con_opciones = [];
+        foreach ($preguntas as $pregunta) {
+            $stmt_opciones->bind_param("i", $pregunta['id_pregunta']);
+            $stmt_opciones->execute();
+            $opciones = $stmt_opciones->get_result()->fetch_all(MYSQLI_ASSOC);
+            $pregunta['opciones'] = $opciones;
+            $preguntas_con_opciones[] = $pregunta;
+        }
+        $stmt_opciones->close();
+
+        $encuesta['preguntas'] = $preguntas_con_opciones;
+        return $encuesta;
+    }
+
+    /**
+     * GUARDA LAS RESPUESTAS (PARA ALUMNOS)
+     * Guarda un set de respuestas usando una transacción.
+     * Maneja la lógica de anonimato.
+     * @param int $id_encuesta
+     * @param int|null $id_alumno_real El ID del alumno de la SESIÓN.
+     * @param string $modo_respuesta 'identificado' o 'anonimo' (la elección del alumno).
+     * @param array $respuestas Array de respuestas.
+     * @return bool True si éxito, false si falla.
+     */
+    public function guardarRespuestas($id_encuesta, $id_alumno_real, $modo_respuesta, $respuestas) {
+        
+        // 1. Obtener la visibilidad de la encuesta (para forzar anonimato si es necesario)
+        $query_vis = "SELECT visibilidad FROM encuestas WHERE id_encuesta = ?";
+        $stmt_vis = $this->conexion->prepare($query_vis);
+        $stmt_vis->bind_param("i", $id_encuesta);
+        $stmt_vis->execute();
+        $encuesta = $stmt_vis->get_result()->fetch_assoc();
+        $stmt_vis->close();
+
+        if (!$encuesta) return false; // La encuesta no existe
+
+        // --- Lógica de Anonimato ---
+        $id_alumno_a_guardar = null; // Por defecto es anónimo
+        
+        if ($encuesta['visibilidad'] === 'identificada' && $modo_respuesta === 'identificado') {
+            // Solo si la encuesta PERMITE identificación Y el alumno ACEPTA
+            $id_alumno_a_guardar = $id_alumno_real;
+        }
+        // En cualquier otro caso ('anonima' o 'identificada' pero eligió 'anonimo'), se queda como null.
+        
+        // Iniciar transacción
+        $this->conexion->begin_transaction();
+        
+        try {
+            // 2. Preparar la inserción de respuestas
+            $query_respuesta = "INSERT INTO respuestas (id_encuesta, id_pregunta, id_alumno, id_opcion_seleccionada, texto_respuesta)
+                                VALUES (?, ?, ?, ?, ?)";
+            $stmt_respuesta = $this->conexion->prepare($query_respuesta);
+
+            foreach ($respuestas as $resp) {
+                // Asignar null si no vienen en el JSON
+                $opcion_id = isset($resp['id_opcion_seleccionada']) ? $resp['id_opcion_seleccionada'] : null;
+                $texto_resp = isset($resp['texto_respuesta']) ? $resp['texto_respuesta'] : null;
+
+                $stmt_respuesta->bind_param("iiiss",
+                    $id_encuesta,
+                    $resp['id_pregunta'],
+                    $id_alumno_a_guardar, // El ID que decidimos (null o real)
+                    $opcion_id,
+                    $texto_resp
+                );
+                $stmt_respuesta->execute();
+            }
+            $stmt_respuesta->close();
+
+            // 3. Confirmar transacción
+            $this->conexion->commit();
+            return true;
+
+        } catch (Exception $e) {
+            $this->conexion->rollback();
+            // Opcional: registrar el error $e->getMessage()
+            return false;
+        }
+    }
+
+    /**
+     * OBTIENE LAS RESPUESTAS DE UN ALUMNO ESPECÍFICO (PARA VISTA "GRACIAS")
+     * Obtiene una lista de preguntas y las respuestas que un alumno dio.
+     * @param int $id_encuesta El ID de la encuesta.
+     * @param int $id_alumno El ID del alumno (de la sesión).
+     * @return array|null Un array de {pregunta, respuesta_dada}, o null si no se encontraron.
+     */
+    public function getRespuestasAlumno($id_encuesta, $id_alumno) {
+        // Esta consulta une 3 tablas:
+        // 1. Preguntas (para el texto de la pregunta)
+        // 2. Respuestas (para la respuesta del alumno)
+        // 3. Opciones (para obtener el texto de la opción que seleccionó)
+        
+        $query = "SELECT 
+                    p.texto_pregunta,
+                    p.tipo_pregunta,
+                    r.texto_respuesta, 
+                    o.texto_opcion
+                  FROM respuestas r
+                  JOIN preguntas p ON r.id_pregunta = p.id_pregunta
+                  LEFT JOIN opciones o ON r.id_opcion_seleccionada = o.id_opcion
+                  WHERE r.id_encuesta = ? 
+                    AND r.id_alumno = ?
+                  ORDER BY p.orden ASC";
+        
+        $stmt = $this->conexion->prepare($query);
+        $stmt->bind_param("ii", $id_encuesta, $id_alumno);
+        $stmt->execute();
+        
+        $resultado = $stmt->get_result();
+        $respuestas_completas = [];
+        
+        while ($fila = $resultado->fetch_assoc()) {
+            $respuesta_dada = '';
+            // Si hay texto_respuesta (pregunta abierta), esa es la respuesta
+            if (!empty($fila['texto_respuesta'])) {
+                $respuesta_dada = $fila['texto_respuesta'];
+            } 
+            // Si hay texto_opcion (pregunta de opción), esa es la respuesta
+            else if (!empty($fila['texto_opcion'])) {
+                $respuesta_dada = $fila['texto_opcion'];
+            }
+            
+            $respuestas_completas[] = [
+                'pregunta' => $fila['texto_pregunta'],
+                'respuesta_dada' => $respuesta_dada
+            ];
+        }
+        
+        $stmt->close();
+        
+        // Si no encontramos nada, devolvemos null
+        if (empty($respuestas_completas)) {
+            return null;
+        }
+        
+        return $respuestas_completas;
+    }
+
+    /**
+     * OBTIENE EL HISTORIAL (ENCUESTAS RESPONDIDAS POR UN ALUMNO)
+     * Obtiene una lista de todas las encuestas que un alumno ha respondido
+     * de forma IDENTIFICADA.
+     * @param int $id_alumno El ID del alumno (de la sesión).
+     * @return array Un array de las encuestas que ha respondido.
+     */
+    public function getEncuestasRespondidasPorAlumno($id_alumno) {
+        
+        // Esta consulta busca en las respuestas, agrupa por encuesta,
+        // y devuelve los detalles de la encuesta si encuentra al menos
+        // una respuesta de este alumno.
+        $query = "SELECT 
+                    e.id_encuesta, 
+                    e.titulo, 
+                    e.descripcion,
+                    MAX(r.fecha_respuesta) AS fecha_respondida 
+                  FROM respuestas r
+                  JOIN encuestas e ON r.id_encuesta = e.id_encuesta
+                  WHERE 
+                    r.id_alumno = ? 
+                  GROUP BY 
+                    e.id_encuesta, e.titulo, e.descripcion
+                  ORDER BY 
+                    fecha_respondida DESC";
+        
+        $stmt = $this->conexion->prepare($query);
+        $stmt->bind_param("i", $id_alumno);
+        $stmt->execute();
+        
+        $resultado = $stmt->get_result();
+        $encuestas = $resultado->fetch_all(MYSQLI_ASSOC);
+        
+        $stmt->close();
+        return $encuestas;
+    }
 }
 ?>

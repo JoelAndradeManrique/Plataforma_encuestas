@@ -174,5 +174,134 @@ class EncuestaController {
             ];
         }
     }
+
+    /**
+     * Obtiene la lista de encuestas públicas para los alumnos.
+     */
+    public function listarEncuestasPublicas() {
+        try {
+            $encuestas = $this->modeloEncuesta->getPublicas();
+            return [
+                'estado' => 200, 
+                'success' => true, 
+                'encuestas' => $encuestas
+            ];
+        } catch (Exception $e) {
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al obtener las encuestas.'];
+        }
+    }
+
+    /**
+     * Obtiene el detalle (preguntas/opciones) de una encuesta para responder.
+     */
+    public function obtenerEncuestaParaResponder($id_encuesta) {
+        if (empty($id_encuesta)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'ID de encuesta no válido.'];
+        }
+
+        $encuesta_detalle = $this->modeloEncuesta->getDetallePublico($id_encuesta);
+
+        if ($encuesta_detalle === null) {
+            return ['estado' => 404, 'success' => false, 'mensaje' => 'Encuesta no encontrada o no está disponible (puede estar cerrada o archivada).'];
+        }
+
+        return [
+            'estado' => 200, 
+            'success' => true, 
+            'encuesta' => $encuesta_detalle
+        ];
+    }
+
+    /**
+     * Recibe y guarda las respuestas de un alumno.
+     */
+    public function recibirRespuestas($datos, $id_alumno_real) {
+        // Validaciones
+        if (empty($datos['id_encuesta']) || empty($datos['modo_respuesta']) || empty($datos['respuestas'])) {
+             return ['estado' => 400, 'success' => false, 'mensaje' => 'Faltan datos clave (id_encuesta, modo_respuesta, respuestas).'];
+        }
+        if ($datos['modo_respuesta'] !== 'identificado' && $datos['modo_respuesta'] !== 'anonimo') {
+             return ['estado' => 400, 'success' => false, 'mensaje' => 'Modo de respuesta no válido.'];
+        }
+
+        // Llamar al modelo para guardar
+        $exito = $this->modeloEncuesta->guardarRespuestas(
+            $datos['id_encuesta'],
+            $id_alumno_real,
+            $datos['modo_respuesta'],
+            $datos['respuestas']
+        );
+
+        if ($exito) {
+            return ['estado' => 201, 'success' => true, 'mensaje' => 'Respuestas guardadas con éxito.'];
+        } else {
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al guardar las respuestas.'];
+        }
+    }
+
+    /**
+     * Obtiene las respuestas de un alumno para una encuesta específica.
+     * @param int $id_encuesta El ID de la encuesta.
+     * @param int $id_alumno El ID del alumno (de la sesión).
+     * @return array Respuesta con estado y datos.
+     */
+    public function obtenerMisRespuestas($id_encuesta, $id_alumno) {
+        if (empty($id_encuesta) || empty($id_alumno)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'Faltan datos requeridos.'];
+        }
+
+        try {
+            $respuestas = $this->modeloEncuesta->getRespuestasAlumno($id_encuesta, $id_alumno);
+
+            if ($respuestas === null) {
+                // Esto puede pasar si respondió anónimamente
+                return ['estado' => 404, 'success' => false, 'mensaje' => 'No se encontraron respuestas identificadas para esta encuesta.'];
+            }
+
+            return [
+                'estado' => 200, 
+                'success' => true, 
+                'respuestas_alumno' => $respuestas
+            ];
+
+        } catch (Exception $e) {
+            return [
+                'estado' => 500, 
+                'success' => false, 
+                'mensaje' => 'Error al obtener las respuestas.',
+                'error_db' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Obtiene el historial de encuestas respondidas (identificadas) por un alumno.
+     * @param int $id_alumno El ID del alumno (de la sesión).
+     * @return array Respuesta con estado y datos.
+     */
+    public function listarEncuestasRespondidas($id_alumno) {
+        if (empty($id_alumno)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'ID de alumno no válido.'];
+        }
+
+        try {
+            $encuestas = $this->modeloEncuesta->getEncuestasRespondidasPorAlumno($id_alumno);
+            
+            // Devolverá un array vacío [] si no ha respondido ninguna
+            return [
+                'estado' => 200, 
+                'success' => true, 
+                'encuestas_respondidas' => $encuestas
+            ];
+
+        } catch (Exception $e) {
+            return [
+                'estado' => 500, 
+                'success' => false, 
+                'mensaje' => 'Error al obtener el historial de encuestas.',
+                'error_db' => $e->getMessage()
+            ];
+        }
+    }
 }
 ?>
