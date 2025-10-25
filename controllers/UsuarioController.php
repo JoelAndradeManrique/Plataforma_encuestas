@@ -73,7 +73,7 @@ class UsuarioController {
         }
     }
 
-    /**
+   /**
      * Procesa el registro de un nuevo encuestador (por el admin).
      * @param array $datos Datos recibidos (nombre, email, asignatura, contrasena).
      * @return array Respuesta con estado y mensaje.
@@ -92,7 +92,19 @@ class UsuarioController {
             return ['estado' => 400, 'success' => false, 'mensaje' => 'El formato del correo no es válido.'];
         }
 
-        // --- ✅ INICIO DE VALIDACIÓN DE CONTRASEÑA ACTUALIZADA ---
+        // --- ✅ NUEVA VALIDACIÓN DE DOMINIO ---
+        // Verificamos si el email termina con "@tecmerida.com" (ignorando mayúsculas/minúsculas)
+        if (!preg_match('/@tecmerida\.com$/i', $datos['email'])) {
+            return [
+                'estado' => 400, 
+                'success' => false, 
+                'mensaje' => 'El correo del encuestador debe pertenecer al dominio @tecmerida.com.'
+            ];
+        }
+        // --- FIN DE LA NUEVA VALIDACIÓN ---
+
+
+        // --- VALIDACIÓN DE CONTRASEÑA (La que ya teníamos) ---
         $contrasena = $datos['contrasena'];
         $mensajeError = '';
 
@@ -109,7 +121,7 @@ class UsuarioController {
         if (!empty($mensajeError)) {
             return ['estado' => 400, 'success' => false, 'mensaje' => $mensajeError];
         }
-        // --- ✅ FIN DE VALIDACIÓN DE CONTRASEÑA ---
+        // --- FIN DE VALIDACIÓN DE CONTRASEÑA ---
 
         // Verificar si el email ya existe
         if ($this->modeloUsuario->findByEmail($datos['email'])) {
@@ -123,7 +135,6 @@ class UsuarioController {
             return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al registrar el encuestador.', 'error_db' => $this->conexion->error];
         }
     }
-
     /**
      * Procesa el inicio de sesión del usuario.
      * @param array $datos Contiene 'email' y 'contrasena'.
