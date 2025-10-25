@@ -148,212 +148,165 @@ class Encuesta {
     /**
      * Obtiene los resultados detallados de una encuesta, incluyendo resumen y desglose.
      * Solo el encuestador que la creó puede ver esto.
-     * * @param int $id_encuesta El ID de la encuesta.
+     * @param int $id_encuesta El ID de la encuesta.
      * @param int $id_encuestador El ID del propietario (desde la sesión).
      * @return array|null|false Un array con los resultados, null si no es propietario, false si hay error.
      */
     public function getResultados($id_encuesta, $id_encuestador) {
-        
+
         // --- 1. Verificar Propiedad y Obtener Datos de la Encuesta ---
-        $query_meta = "SELECT titulo, descripcion, visibilidad, estado 
-                       FROM encuestas 
+        $query_meta = "SELECT titulo, descripcion, visibilidad, estado
+                       FROM encuestas
                        WHERE id_encuesta = ? AND id_encuestador = ?";
         $stmt_meta = $this->conexion->prepare($query_meta);
+        if (!$stmt_meta) { /* Manejar error */ return false; }
         $stmt_meta->bind_param("ii", $id_encuesta, $id_encuestador);
         $stmt_meta->execute();
         $meta_encuesta = $stmt_meta->get_result()->fetch_assoc();
         $stmt_meta->close();
 
-        // Si no devuelve nada, no es el propietario o la encuesta no existe
-        if (!$meta_encuesta) {
-            return null; 
-        }
+        if (!$meta_encuesta) { return null; }
 
         $resultados = [
-            'titulo' => $meta_encuesta['titulo'],
-            'visibilidad' => $meta_encuesta['visibilidad'],
-            'estado' => $meta_encuesta['estado'],
-            'resumen_participacion' => [],
-            'preguntas' => []
+            'titulo' => $meta_encuesta['titulo'], 'visibilidad' => $meta_encuesta['visibilidad'],
+            'estado' => $meta_encuesta['estado'], 'resumen_participacion' => [], 'preguntas' => []
         ];
 
-        // --- 2. Lógica del Pie Chart (% Respuestas Anónimas vs. Identificadas) ---
-        $query_pie = "SELECT 
-                        SUM(CASE WHEN id_alumno IS NULL THEN 1 ELSE 0 END) AS anonimas,
+        // --- 2. Lógica del Pie Chart ---
+        $query_pie = "SELECT SUM(CASE WHEN id_alumno IS NULL THEN 1 ELSE 0 END) AS anonimas,
                         SUM(CASE WHEN id_alumno IS NOT NULL THEN 1 ELSE 0 END) AS identificadas
-                      FROM respuestas 
-                      WHERE id_encuesta = ?";
+                      FROM respuestas WHERE id_encuesta = ?";
         $stmt_pie = $this->conexion->prepare($query_pie);
+        if (!$stmt_pie) { return false; }
         $stmt_pie->bind_param("i", $id_encuesta);
         $stmt_pie->execute();
         $resumen = $stmt_pie->get_result()->fetch_assoc();
         $stmt_pie->close();
-        
-        $resultados['resumen_participacion'] = [
-            'respuestas_anonimas' => (int)$resumen['anonimas'],
-            'respuestas_identificadas' => (int)$resumen['identificadas']
-        ];
+        $resultados['resumen_participacion'] = ['respuestas_anonimas' => (int)$resumen['anonimas'], 'respuestas_identificadas' => (int)$resumen['identificadas']];
 
         // --- 3. Lógica de Resultados por Pregunta ---
-        
-        // Obtener todas las preguntas de la encuesta
-        $query_preguntas = "SELECT id_pregunta, texto_pregunta, tipo_pregunta, orden 
-                            FROM preguntas 
-                            WHERE id_encuesta = ? ORDER BY orden ASC";
+        $query_preguntas = "SELECT id_pregunta, texto_pregunta, tipo_pregunta, orden FROM preguntas WHERE id_encuesta = ? ORDER BY orden ASC";
         $stmt_preguntas = $this->conexion->prepare($query_preguntas);
+        if (!$stmt_preguntas) { return false; }
         $stmt_preguntas->bind_param("i", $id_encuesta);
         $stmt_preguntas->execute();
         $lista_preguntas = $stmt_preguntas->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt_preguntas->close();
 
-        // Preparar las consultas que usaremos en el bucle
-        $query_opciones = "SELECT id_opcion, texto_opcion, COUNT(r.id_respuesta) AS conteo
-                           FROM opciones o
-                           LEFT JOIN respuestas r ON o.id_opcion = r.id_opcion_seleccionada
-                           WHERE o.id_pregunta = ?
-                           GROUP BY o.id_opcion, o.texto_opcion";
-        $stmt_opciones = $this.conexion->prepare($query_opciones);
+        // Preparar statements
+        $query_opciones = "SELECT id_opcion, texto_opcion, COUNT(r.id_respuesta) AS conteo FROM opciones o LEFT JOIN respuestas r ON o.id_opcion = r.id_opcion_seleccionada WHERE o.id_pregunta = ? GROUP BY o.id_opcion, o.texto_opcion";
+        $stmt_opciones = $this->conexion->prepare($query_opciones);
+        if (!$stmt_opciones) { return false; }
 
-        $query_participantes = "SELECT r.id_opcion_seleccionada, u.nombre, u.apellido
-                                FROM respuestas r
-                                JOIN usuarios u ON r.id_alumno = u.id_usuario
-                                WHERE r.id_pregunta = ?";
-        $stmt_participantes = $this.conexion->prepare($query_participantes);
+        $query_participantes = "SELECT r.id_opcion_seleccionada, u.nombre, u.apellido FROM respuestas r JOIN usuarios u ON r.id_alumno = u.id_usuario WHERE r.id_pregunta = ?";
+        $stmt_participantes = $this->conexion->prepare($query_participantes);
+        if (!$stmt_participantes) { return false; }
 
-        $query_abiertas = "SELECT r.texto_respuesta, u.nombre, u.apellido
+        // --- ✅ CORRECCIÓN DEL NOMBRE DE COLUMNA ---
+        $query_abiertas = "SELECT r.texto_respuesta_abierta, u.nombre, u.apellido
                            FROM respuestas r
                            LEFT JOIN usuarios u ON r.id_alumno = u.id_usuario
                            WHERE r.id_pregunta = ?";
-        $stmt_abiertas = $this.conexion->prepare($query_abiertas);
+        $stmt_abiertas = $this->conexion->prepare($query_abiertas);
+        if (!$stmt_abiertas) { return false; }
+        // --- FIN CORRECCIÓN ---
 
 
-        // Bucle por cada pregunta
         foreach ($lista_preguntas as $pregunta) {
-            $datos_pregunta = [
-                'id_pregunta' => $pregunta['id_pregunta'],
-                'texto_pregunta' => $pregunta['texto_pregunta'],
-                'tipo_pregunta' => $pregunta['tipo_pregunta'],
-                'resultados' => []
-            ];
+            $datos_pregunta = [ 'id_pregunta' => $pregunta['id_pregunta'], 'texto_pregunta' => $pregunta['texto_pregunta'], 'tipo_pregunta' => $pregunta['tipo_pregunta'], 'resultados' => [] ];
 
             if ($pregunta['tipo_pregunta'] === 'abierta') {
-                // --- Caso 1: Pregunta Abierta ---
-                $stmt_abiertas->bind_param("i", $pregunta['id_pregunta']);
-                $stmt_abiertas->execute();
+                $stmt_abiertas->bind_param("i", $pregunta['id_pregunta']); $stmt_abiertas->execute();
                 $resp_abiertas = $stmt_abiertas->get_result()->fetch_all(MYSQLI_ASSOC);
-                
                 foreach($resp_abiertas as $resp) {
-                    $datos_pregunta['resultados'][] = [
-                        'texto_respuesta' => $resp['texto_respuesta'],
-                        'participante' => $resp['nombre'] ? ($resp['nombre'] . ' ' . $resp['apellido']) : 'Anónimo'
-                    ];
+                    // --- ✅ CORRECCIÓN DEL NOMBRE DE COLUMNA ---
+                    $datos_pregunta['resultados'][] = [ 'texto_respuesta' => $resp['texto_respuesta_abierta'], 'participante' => $resp['nombre'] ? ($resp['nombre'] . ' ' . $resp['apellido']) : 'Anónimo' ];
+                     // --- FIN CORRECCIÓN ---
                 }
-
-            } else {
-                // --- Caso 2: Pregunta de Opciones (Múltiple, Escala, Si/No, etc.) ---
-                
-                // a) Obtener las opciones y el conteo de votos
-                $stmt_opciones->bind_param("i", $pregunta['id_pregunta']);
-                $stmt_opciones->execute();
+            } else { // Opciones
+                $stmt_opciones->bind_param("i", $pregunta['id_pregunta']); $stmt_opciones->execute();
                 $opciones = $stmt_opciones->get_result()->fetch_all(MYSQLI_ASSOC);
-                
                 $resultados_opciones = [];
-                foreach($opciones as $opc) {
-                    $resultados_opciones[$opc['id_opcion']] = [
-                        'texto_opcion' => $opc['texto_opcion'],
-                        'conteo' => (int)$opc['conteo'],
-                        'participantes' => [] // Lista para los nombres
-                    ];
-                }
+                foreach($opciones as $opc) { $resultados_opciones[$opc['id_opcion']] = [ 'texto_opcion' => $opc['texto_opcion'], 'conteo' => (int)$opc['conteo'], 'participantes' => [] ]; }
 
-                // b) Si la encuesta es 'identificada', buscar los nombres de quién votó qué
                 if ($meta_encuesta['visibilidad'] === 'identificada') {
-                    $stmt_participantes->bind_param("i", $pregunta['id_pregunta']);
-                    $stmt_participantes->execute();
+                    $stmt_participantes->bind_param("i", $pregunta['id_pregunta']); $stmt_participantes->execute();
                     $participantes = $stmt_participantes->get_result()->fetch_all(MYSQLI_ASSOC);
-
-                    foreach($participantes as $p) {
-                        // Añadir el nombre a la opción correspondiente
-                        if(isset($resultados_opciones[$p['id_opcion_seleccionada']])) {
-                            $resultados_opciones[$p['id_opcion_seleccionada']]['participantes'][] = $p['nombre'] . ' ' . $p['apellido'];
-                        }
-                    }
+                    foreach($participantes as $p) { if(isset($resultados_opciones[$p['id_opcion_seleccionada']])) { $resultados_opciones[$p['id_opcion_seleccionada']]['participantes'][] = $p['nombre'] . ' ' . $p['apellido']; } }
                 }
-                
-                // Limpiar el array para que el JSON sea limpio (quitamos los IDs de opción como keys)
                 $datos_pregunta['resultados'] = array_values($resultados_opciones);
             }
-            
             $resultados['preguntas'][] = $datos_pregunta;
         }
-        
-        $stmt_opciones->close();
-        $stmt_participantes->close();
-        $stmt_abiertas->close();
+
+        // Cerrar statements
+        if ($stmt_opciones) $stmt_opciones->close();
+        if ($stmt_participantes) $stmt_participantes->close();
+        if ($stmt_abiertas) $stmt_abiertas->close();
 
         return $resultados;
     }
 
     /**
      * OBTIENE ENCUESTAS PÚBLICAS (PARA ALUMNOS)
-     * Busca y devuelve todas las encuestas que están 'publicada'.
-     * Si se provee un $searchTerm, filtra los resultados.
+     * Busca encuestas 'publicada'. Si se provee $id_alumno,
+     * indica si ese alumno ya la respondió.
+     * @param int|null $id_alumno ID del alumno actual (de la sesión).
      * @param string|null $searchTerm Término de búsqueda opcional.
      * @return array Un array con las encuestas públicas.
      */
-    public function getPublicas($searchTerm = null) {
-        
-        // Unimos con Usuarios para obtener el nombre del encuestador
-        $query = "SELECT 
+    public function getPublicas($id_alumno = null, $searchTerm = null) { // Añadido $id_alumno
+
+        // Unimos con Usuarios y (condicionalmente) con Respuestas
+        // Usamos LEFT JOIN con respuestas y COUNT para ver si el alumno ya respondió
+        $query = "SELECT
                     e.id_encuesta, e.titulo, e.descripcion, e.visibilidad, e.fecha_creacion,
-                    CASE 
+                    CASE
                         WHEN e.visibilidad = 'identificada' THEN CONCAT(u.nombre, ' ', u.apellido)
                         ELSE 'Anónimo'
-                    END AS encuestador_nombre
+                    END AS encuestador_nombre,
+                    -- ✅ Nueva Columna: Contar respuestas del alumno actual para esta encuesta
+                    COUNT(r_alumno.id_respuesta) > 0 AS ya_respondida
                   FROM encuestas e
                   JOIN usuarios u ON e.id_encuestador = u.id_usuario
+                  -- ✅ LEFT JOIN a respuestas FILTRANDO por el alumno actual
+                  LEFT JOIN respuestas r_alumno ON e.id_encuesta = r_alumno.id_encuesta AND r_alumno.id_alumno = ?
                   WHERE e.estado = 'publicada'";
-        
-        $params = [];
-        $types = "";
 
-        // --- ✅ INICIO DE LA LÓGICA DE BÚSQUEDA ---
-        // Si el frontend nos envió un término de búsqueda, lo añadimos a la consulta
+        $params = [$id_alumno]; // El primer parámetro SIEMPRE es el id_alumno para el JOIN
+        $types = "i"; // Tipo para id_alumno
+
+        // --- Lógica de Búsqueda ---
         if ($searchTerm !== null) {
-            // Añadimos las condiciones OR para buscar en título, descripción O nombre del encuestador
-            $query .= " AND (
-                            e.titulo LIKE ? 
-                            OR e.descripcion LIKE ? 
-                            OR CONCAT(u.nombre, ' ', u.apellido) LIKE ?
-                        )";
-            
-            // Preparamos el término para el SQL (con comodines %)
+            $query .= " AND ( e.titulo LIKE ? OR e.descripcion LIKE ? OR CONCAT(u.nombre, ' ', u.apellido) LIKE ? )";
             $likeTerm = "%{$searchTerm}%";
-            
-            // Añadimos el parámetro 3 veces (uno por cada '?')
-            $params = [$likeTerm, $likeTerm, $likeTerm];
-            $types = "sss";
+            $params = array_merge($params, [$likeTerm, $likeTerm, $likeTerm]); // Añadir parámetros de búsqueda
+            $types .= "sss"; // Añadir tipos para búsqueda
         }
-        // --- ✅ FIN DE LA LÓGICA DE BÚSQUEDA ---
+        // --- Fin Lógica de Búsqueda ---
 
+        // ✅ Agrupar para que COUNT funcione correctamente
+        $query .= " GROUP BY e.id_encuesta, e.titulo, e.descripcion, e.visibilidad, e.fecha_creacion, encuestador_nombre";
         $query .= " ORDER BY e.fecha_creacion DESC";
-        
-        $stmt = $this->conexion->prepare($query);
 
-        // Si hay parámetros (es decir, si estamos buscando), los "atamos" (bind)
-        if (!empty($params)) {
-            $stmt->bind_param($types, ...$params);
-        }
-        
+        $stmt = $this->conexion->prepare($query);
+        if (!$stmt) { error_log("Prepare failed (getPublicas): " . $this->conexion->error); return []; } // Devolver array vacío en error
+
+        // "Atar" (bind) los parámetros
+        $stmt->bind_param($types, ...$params);
+
         $stmt->execute();
-        
         $resultado = $stmt->get_result();
         $encuestas = $resultado->fetch_all(MYSQLI_ASSOC);
-        
         $stmt->close();
+
+        // Convertir 'ya_respondida' a booleano para JSON
+        foreach ($encuestas as &$encuesta) {
+            $encuesta['ya_respondida'] = (bool)$encuesta['ya_respondida'];
+        }
+
         return $encuestas;
     }
-
     /**
      * OBTIENE DETALLE DE ENCUESTA (PARA ALUMNOS)
      * Obtiene una sola encuesta, sus preguntas y sus opciones (sin resultados).
@@ -362,9 +315,14 @@ class Encuesta {
      */
     public function getDetallePublico($id_encuesta) {
         // 1. Obtener la encuesta (solo si está 'publicada')
-        $query_encuesta = "SELECT id_encuesta, titulo, descripcion, visibilidad FROM encuestas 
+        $query_encuesta = "SELECT id_encuesta, titulo, descripcion, visibilidad FROM encuestas
                            WHERE id_encuesta = ? AND estado = 'publicada'";
         $stmt_encuesta = $this->conexion->prepare($query_encuesta);
+        // Añadir chequeo de error en prepare
+        if (!$stmt_encuesta) {
+             error_log("Error preparing encuesta query: " . $this->conexion->error);
+             return false; // Indicar error
+        }
         $stmt_encuesta->bind_param("i", $id_encuesta);
         $stmt_encuesta->execute();
         $encuesta = $stmt_encuesta->get_result()->fetch_assoc();
@@ -375,30 +333,46 @@ class Encuesta {
         }
 
         // 2. Obtener las preguntas
-        $query_preguntas = "SELECT id_pregunta, texto_pregunta, tipo_pregunta, orden 
-                            FROM preguntas 
+        $query_preguntas = "SELECT id_pregunta, texto_pregunta, tipo_pregunta, orden
+                            FROM preguntas
                             WHERE id_encuesta = ? ORDER BY orden ASC";
         $stmt_preguntas = $this->conexion->prepare($query_preguntas);
+        if (!$stmt_preguntas) {
+             error_log("Error preparing preguntas query: " . $this->conexion->error);
+             return false;
+        }
         $stmt_preguntas->bind_param("i", $id_encuesta);
         $stmt_preguntas->execute();
         $preguntas = $stmt_preguntas->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt_preguntas->close();
 
         // 3. Obtener las opciones para cada pregunta
-        $query_opciones = "SELECT id_opcion, texto_opcion, valor_escala 
-                           FROM opciones 
+        $query_opciones = "SELECT id_opcion, texto_opcion, valor_escala
+                           FROM opciones
                            WHERE id_pregunta = ?";
-        $stmt_opciones = $this.conexion->prepare($query_opciones);
+        // --- ✅ CORRECCIÓN AQUÍ ---
+        $stmt_opciones = $this->conexion->prepare($query_opciones); // Usar -> en lugar de .
+        // --- FIN CORRECCIÓN ---
+        if (!$stmt_opciones) {
+             error_log("Error preparing opciones query: " . $this->conexion->error);
+             // Si falla aquí, al menos devolvemos la encuesta sin opciones
+             $encuesta['preguntas'] = $preguntas; // Devolver preguntas sin opciones
+             return $encuesta;
+             // O podrías devolver false para indicar un error más grave
+             // return false;
+        }
+
 
         $preguntas_con_opciones = [];
         foreach ($preguntas as $pregunta) {
             $stmt_opciones->bind_param("i", $pregunta['id_pregunta']);
             $stmt_opciones->execute();
-            $opciones = $stmt_opciones->get_result()->fetch_all(MYSQLI_ASSOC);
+            $opciones_result = $stmt_opciones->get_result(); // Guardar resultado antes de fetch
+            $opciones = $opciones_result->fetch_all(MYSQLI_ASSOC);
             $pregunta['opciones'] = $opciones;
             $preguntas_con_opciones[] = $pregunta;
         }
-        $stmt_opciones->close();
+        $stmt_opciones->close(); // Cerrar statement fuera del bucle
 
         $encuesta['preguntas'] = $preguntas_con_opciones;
         return $encuesta;
@@ -411,52 +385,80 @@ class Encuesta {
      * @param int $id_encuesta
      * @param int|null $id_alumno_real El ID del alumno de la SESIÓN.
      * @param string $modo_respuesta 'identificado' o 'anonimo' (la elección del alumno).
-     * @param array $respuestas Array de respuestas.
+     * @param array $respuestas Array de respuestas [{id_pregunta, id_opcion_seleccionada?, texto_respuesta?}].
      * @return bool True si éxito, false si falla.
      */
     public function guardarRespuestas($id_encuesta, $id_alumno_real, $modo_respuesta, $respuestas) {
-        
-        // 1. Obtener la visibilidad de la encuesta (para forzar anonimato si es necesario)
-        $query_vis = "SELECT visibilidad FROM encuestas WHERE id_encuesta = ?";
+
+        // 1. Obtener la visibilidad de la encuesta
+        $query_vis = "SELECT visibilidad FROM encuestas WHERE id_encuesta = ? AND estado = 'publicada'"; // Asegurarse que sigue publicada
         $stmt_vis = $this->conexion->prepare($query_vis);
+        if (!$stmt_vis) { error_log("Prepare failed (visibilidad): ".$this->conexion->error); return false; }
         $stmt_vis->bind_param("i", $id_encuesta);
         $stmt_vis->execute();
         $encuesta = $stmt_vis->get_result()->fetch_assoc();
         $stmt_vis->close();
 
-        if (!$encuesta) return false; // La encuesta no existe
+        // Si la encuesta no existe o ya no está publicada, no guardar
+        if (!$encuesta) {
+            error_log("Encuesta ID $id_encuesta no encontrada o no publicada.");
+            return false;
+        }
 
         // --- Lógica de Anonimato ---
-        $id_alumno_a_guardar = null; // Por defecto es anónimo
-        
+        $id_alumno_a_guardar = null;
         if ($encuesta['visibilidad'] === 'identificada' && $modo_respuesta === 'identificado') {
-            // Solo si la encuesta PERMITE identificación Y el alumno ACEPTA
             $id_alumno_a_guardar = $id_alumno_real;
         }
-        // En cualquier otro caso ('anonima' o 'identificada' pero eligió 'anonimo'), se queda como null.
-        
+
         // Iniciar transacción
         $this->conexion->begin_transaction();
-        
+
         try {
-            // 2. Preparar la inserción de respuestas
-            $query_respuesta = "INSERT INTO respuestas (id_encuesta, id_pregunta, id_alumno, id_opcion_seleccionada, texto_respuesta)
+            // --- ✅ CORRECCIÓN: Nombre de columna correcto ---
+            $query_respuesta = "INSERT INTO respuestas (id_encuesta, id_pregunta, id_alumno, id_opcion_seleccionada, texto_respuesta_abierta)
                                 VALUES (?, ?, ?, ?, ?)";
             $stmt_respuesta = $this->conexion->prepare($query_respuesta);
+            if (!$stmt_respuesta) { // Chequeo robusto
+                 error_log("Prepare failed (respuesta): ".$this->conexion->error);
+                 $this->conexion->rollback();
+                 return false;
+            }
 
             foreach ($respuestas as $resp) {
-                // Asignar null si no vienen en el JSON
-                $opcion_id = isset($resp['id_opcion_seleccionada']) ? $resp['id_opcion_seleccionada'] : null;
+                // Asegurarse que las llaves existen, default a null
+                $id_preg = isset($resp['id_pregunta']) ? (int)$resp['id_pregunta'] : null;
+                $opcion_id = isset($resp['id_opcion_seleccionada']) ? (int)$resp['id_opcion_seleccionada'] : null;
                 $texto_resp = isset($resp['texto_respuesta']) ? $resp['texto_respuesta'] : null;
 
-                $stmt_respuesta->bind_param("iiiss",
+                // Si falta el ID de pregunta, es un error grave en los datos, saltar
+                if ($id_preg === null) {
+                    error_log("Skipping response due to missing id_pregunta in payload for encuesta $id_encuesta");
+                    continue;
+                }
+
+                // Tipos para bind_param: i=integer, s=string, d=double, b=blob
+                // id_encuesta(i), id_pregunta(i), id_alumno(i/null), id_opcion(i/null), texto(s/null)
+                // Usamos 'i' para los IDs que pueden ser NULL, MySQLi lo maneja bien.
+                $bind_success = $stmt_respuesta->bind_param("iiiis",
                     $id_encuesta,
-                    $resp['id_pregunta'],
-                    $id_alumno_a_guardar, // El ID que decidimos (null o real)
+                    $id_preg,
+                    $id_alumno_a_guardar,
                     $opcion_id,
                     $texto_resp
                 );
-                $stmt_respuesta->execute();
+                if (!$bind_success) { // Chequeo robusto
+                    error_log("Bind failed: " . $stmt_respuesta->error);
+                    $this->conexion->rollback();
+                    return false;
+                }
+
+                $execute_success = $stmt_respuesta->execute();
+                if (!$execute_success) { // Chequeo robusto
+                    error_log("Execute failed: " . $stmt_respuesta->error . " | SQL: " . $query_respuesta);
+                    $this->conexion->rollback();
+                    return false;
+                }
             }
             $stmt_respuesta->close();
 
@@ -466,67 +468,77 @@ class Encuesta {
 
         } catch (Exception $e) {
             $this->conexion->rollback();
-            // Opcional: registrar el error $e->getMessage()
+            error_log("Exception during guardarRespuestas: " . $e->getMessage()); // Registrar el error
             return false;
         }
     }
-
     /**
      * OBTIENE LAS RESPUESTAS DE UN ALUMNO ESPECÍFICO (PARA VISTA "GRACIAS")
      * Obtiene una lista de preguntas y las respuestas que un alumno dio.
      * @param int $id_encuesta El ID de la encuesta.
      * @param int $id_alumno El ID del alumno (de la sesión).
-     * @return array|null Un array de {pregunta, respuesta_dada}, o null si no se encontraron.
+     * @return array|null|false Un array de {pregunta, respuesta_dada}, null si no hay, false si error DB.
      */
     public function getRespuestasAlumno($id_encuesta, $id_alumno) {
-        // Esta consulta une 3 tablas:
-        // 1. Preguntas (para el texto de la pregunta)
-        // 2. Respuestas (para la respuesta del alumno)
-        // 3. Opciones (para obtener el texto de la opción que seleccionó)
-        
-        $query = "SELECT 
+        $query = "SELECT
                     p.texto_pregunta,
                     p.tipo_pregunta,
-                    r.texto_respuesta, 
+                    r.texto_respuesta_abierta, -- Usar el nombre correcto
                     o.texto_opcion
                   FROM respuestas r
                   JOIN preguntas p ON r.id_pregunta = p.id_pregunta
                   LEFT JOIN opciones o ON r.id_opcion_seleccionada = o.id_opcion
-                  WHERE r.id_encuesta = ? 
+                  WHERE r.id_encuesta = ?
                     AND r.id_alumno = ?
                   ORDER BY p.orden ASC";
-        
+
         $stmt = $this->conexion->prepare($query);
+        // --- Añadido: Chequeo de error en prepare ---
+        if (!$stmt) {
+            error_log("Prepare failed (getRespuestasAlumno): ".$this->conexion->error);
+            return false; // Indicar error de DB
+        }
+
         $stmt->bind_param("ii", $id_encuesta, $id_alumno);
-        $stmt->execute();
-        
+
+        // --- Añadido: Chequeo de error en execute ---
+        if (!$stmt->execute()) {
+             error_log("Execute failed (getRespuestasAlumno): ".$stmt->error);
+             $stmt->close();
+             return false; // Indicar error de DB
+        }
+
         $resultado = $stmt->get_result();
+        // --- Añadido: Chequeo de error en get_result ---
+        if (!$resultado) {
+             error_log("Get result failed (getRespuestasAlumno): ".$stmt->error);
+             $stmt->close();
+             return false; // Indicar error de DB
+        }
+
         $respuestas_completas = [];
-        
         while ($fila = $resultado->fetch_assoc()) {
             $respuesta_dada = '';
-            // Si hay texto_respuesta (pregunta abierta), esa es la respuesta
-            if (!empty($fila['texto_respuesta'])) {
-                $respuesta_dada = $fila['texto_respuesta'];
-            } 
-            // Si hay texto_opcion (pregunta de opción), esa es la respuesta
+            // Usar el nombre correcto de columna
+            if (!empty($fila['texto_respuesta_abierta'])) {
+                $respuesta_dada = $fila['texto_respuesta_abierta'];
+            }
             else if (!empty($fila['texto_opcion'])) {
                 $respuesta_dada = $fila['texto_opcion'];
             }
-            
+
             $respuestas_completas[] = [
                 'pregunta' => $fila['texto_pregunta'],
                 'respuesta_dada' => $respuesta_dada
             ];
         }
-        
         $stmt->close();
-        
-        // Si no encontramos nada, devolvemos null
+
+        // Si el array está vacío, significa que no respondió identificado
         if (empty($respuestas_completas)) {
             return null;
         }
-        
+
         return $respuestas_completas;
     }
 

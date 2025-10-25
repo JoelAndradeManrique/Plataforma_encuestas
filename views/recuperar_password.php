@@ -34,7 +34,7 @@
                 
                 <div class="register-link" style="margin-top: 1rem;">
                     <span>¿Recordaste tu contraseña? </span>
-                    <a href="inicio_sesion.php" class="register-text">Inicia Sesión</a>
+                    <a href="login.php" class="register-text">Inicia Sesión</a>
                 </div>
             </form>
         </div>

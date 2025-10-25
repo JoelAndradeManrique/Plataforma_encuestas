@@ -420,5 +420,60 @@ class UsuarioController {
             return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al actualizar la contraseña.'];
         }
     }
+
+    /**
+     * CAMBIAR MI CONTRASEÑA (Desde Perfil)
+     * Permite a un usuario logueado cambiar su contraseña proporcionando la actual.
+     */
+    public function cambiarMiContrasena($datos) {
+        // Validaciones básicas
+        if (empty($datos['id_usuario']) || empty($datos['contrasena_actual']) || empty($datos['nueva_contrasena']) || empty($datos['confirmar_contrasena'])) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'Todos los campos son requeridos.'];
+        }
+        if ($datos['nueva_contrasena'] !== $datos['confirmar_contrasena']) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'Las contraseñas nuevas no coinciden.'];
+        }
+        if ($datos['nueva_contrasena'] === $datos['contrasena_actual']) {
+             return ['estado' => 400, 'success' => false, 'mensaje' => 'La nueva contraseña no puede ser igual a la actual.'];
+        }
+
+        // --- VALIDACIÓN DE NUEVA CONTRASEÑA (la misma regla) ---
+        $contrasena = $datos['nueva_contrasena'];
+        $mensajeError = '';
+        if (strlen($contrasena) < 8) { $mensajeError = 'La contraseña debe tener al menos 8 caracteres.'; }
+        else if (!preg_match('/AL$/i', $contrasena)) { $mensajeError = 'La contraseña debe terminar con "AL".'; }
+        else if (!preg_match('/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+/', $contrasena)) { $mensajeError = 'La contraseña debe contener al menos un caracter especial (ej. !@#$%).'; }
+        if (!empty($mensajeError)) { return ['estado' => 400, 'success' => false, 'mensaje' => $mensajeError]; }
+        // --- FIN VALIDACIÓN ---
+
+        // 1. Obtener el hash actual del usuario desde la DB
+        $query_hash = "SELECT contrasena_hash FROM usuarios WHERE id_usuario = ?";
+        $stmt_hash = $this->conexion->prepare($query_hash);
+        if (!$stmt_hash) { return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al preparar consulta.']; }
+        $stmt_hash->bind_param("i", $datos['id_usuario']);
+        $stmt_hash->execute();
+        $resultado = $stmt_hash->get_result()->fetch_assoc();
+        $stmt_hash->close();
+
+        if (!$resultado) {
+            return ['estado' => 404, 'success' => false, 'mensaje' => 'Usuario no encontrado.'];
+        }
+
+        // 2. Verificar si la contraseña actual proporcionada coincide
+        if (!password_verify($datos['contrasena_actual'], $resultado['contrasena_hash'])) {
+            return ['estado' => 401, 'success' => false, 'mensaje' => 'La contraseña actual es incorrecta.']; // 401 Unauthorized
+        }
+
+        // 3. Si todo es correcto, hashear y actualizar la nueva contraseña
+        $nuevo_hash = password_hash($datos['nueva_contrasena'], PASSWORD_DEFAULT);
+        
+        // Usamos la función del MODELO existente 'updatePassword'
+        // (ya que esa función también pone password_temporal = FALSE, por si acaso)
+        if ($this->modeloUsuario->updatePassword($datos['id_usuario'], $nuevo_hash) > 0) {
+            return ['estado' => 200, 'success' => true, 'mensaje' => 'Contraseña actualizada con éxito.'];
+        } else {
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al actualizar la contraseña en la base de datos.'];
+        }
+    }
 }
 ?>

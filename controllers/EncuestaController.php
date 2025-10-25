@@ -177,23 +177,27 @@ class EncuestaController {
 
     /**
      * Obtiene la lista de encuestas públicas para los alumnos.
+     * @param int $id_alumno ID del alumno actual.
      * @param string|null $searchTerm Término de búsqueda opcional.
      */
-    public function listarEncuestasPublicas($searchTerm = null) {
+    public function listarEncuestasPublicas($id_alumno, $searchTerm = null) { // Añadido $id_alumno
+        // Validar id_alumno (básico)
+        if (empty($id_alumno)) {
+             return ['estado' => 400, 'success' => false, 'mensaje' => 'Se requiere ID de alumno.'];
+        }
         try {
-            // ✅ Le pasamos el $searchTerm (que puede ser null) al modelo
-            $encuestas = $this->modeloEncuesta->getPublicas($searchTerm);
-            
+            // ✅ Pasar ambos parámetros al modelo
+            $encuestas = $this->modeloEncuesta->getPublicas($id_alumno, $searchTerm);
+
             return [
-                'estado' => 200, 
-                'success' => true, 
+                'estado' => 200,
+                'success' => true,
                 'encuestas' => $encuestas
             ];
         } catch (Exception $e) {
             return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al obtener las encuestas.'];
         }
     }
-
     /**
      * Obtiene el detalle (preguntas/opciones) de una encuesta para responder.
      */
@@ -257,22 +261,31 @@ class EncuestaController {
             $respuestas = $this->modeloEncuesta->getRespuestasAlumno($id_encuesta, $id_alumno);
 
             if ($respuestas === null) {
-                // Esto puede pasar si respondió anónimamente
+                // No respondió identificado
                 return ['estado' => 404, 'success' => false, 'mensaje' => 'No se encontraron respuestas identificadas para esta encuesta.'];
             }
+            // --- ✅ Añadido: Chequeo si el modelo devolvió error 'false' ---
+            if ($respuestas === false) {
+                 error_log("modeloEncuesta->getRespuestasAlumno returned false for encuesta $id_encuesta, alumno $id_alumno");
+                 // Indicar error interno
+                 return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de base de datos al obtener respuestas. Revise los logs del servidor.'];
+            }
+            // --- Fin añadido ---
 
+            // Éxito
             return [
-                'estado' => 200, 
-                'success' => true, 
+                'estado' => 200,
+                'success' => true,
                 'respuestas_alumno' => $respuestas
             ];
 
         } catch (Exception $e) {
+            error_log("Exception in obtenerMisRespuestas: " . $e->getMessage()); // Registrar excepción
             return [
-                'estado' => 500, 
-                'success' => false, 
-                'mensaje' => 'Error al obtener las respuestas.',
-                'error_db' => $e->getMessage()
+                'estado' => 500,
+                'success' => false,
+                'mensaje' => 'Error al procesar las respuestas.',
+                'error_db' => $e->getMessage() // Opcional: Enviar mensaje de error (cuidado en producción)
             ];
         }
     }

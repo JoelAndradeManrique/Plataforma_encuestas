@@ -57,10 +57,7 @@
    <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('loginForm');
-        const passwordInput = document.getElementById('password');
-        const eyeIcon = document.querySelector('.eye-icon');
-
-        // --- Configuración del "Toast" ---
+        // ... (resto del código de 'ojo' y 'Toast') ...
         const Toast = Swal.mixin({
             toast: true,
             position: 'top-end',
@@ -73,20 +70,21 @@
             }
         });
 
-        // --- Lógica para el Ojo de la Contraseña ---
+        // ... (resto del código de 'ojo') ...
+        const passwordInput = document.getElementById('password');
+        const eyeIcon = document.querySelector('.eye-icon');
         if (eyeIcon) {
             eyeIcon.addEventListener('click', function() {
                 const isPassword = passwordInput.type === 'password';
                 passwordInput.type = isPassword ? 'text' : 'password';
-                this.textContent = isPassword ? '🙉' : '🙈';
+                this.textContent = isPassword ? '🙈' : '👁';
             });
         }
 
-        // --- Lógica de Envío del Formulario ---
         form.addEventListener('submit', function(e) {
             e.preventDefault(); 
             const loginBtn = document.querySelector('.login-btn');
-            
+            // ... (resto del código de 'submit') ...
             loginBtn.textContent = 'Iniciando...';
             loginBtn.disabled = true;
 
@@ -96,20 +94,35 @@
             $.ajax({
                 url: '../api/login.php',
                 method: 'POST',
+                // ... (resto de AJAX) ...
                 contentType: 'application/json',
                 data: JSON.stringify({ email: email, contrasena: contrasena }),
                 success: function(response) {
                     if (response.success) {
                         
-                        // --- ❌ LÓGICA DE 'accion_requerida' ELIMINADA ---
-                        // El dashboard se encargará de esto ahora.
+                        if (response.accion_requerida === 'cambiar_contrasena') {
+                            Swal.fire({
+                                icon: 'info',
+                                title: 'Contraseña Temporal',
+                                text: 'Debes cambiar tu contraseña para continuar.',
+                                allowOutsideClick: false
+                            }).then(() => {
+                                window.location.href = 'resetear-contrasena.php'; 
+                            });
+                            return;
+                        }
 
-                        // Redirección por ROL
-                        let destino = 'dashboard_general.php'; // Destino por defecto
+                        // --- ✅ LÓGICA DE REDIRECCIÓN ACTUALIZADA ---
+                        let destino = ''; 
+                        
                         if (response.usuario.rol === 'admin') {
                             destino = 'dashboard_admin.php';
+                        } else if (response.usuario.rol === 'encuestador') {
+                            destino = 'dashboard_general.php'; // Encuestador SÍ va aquí
                         } else if (response.usuario.rol === 'alumno') {
-                            destino = 'dashboard_alumno.php';
+                            destino = 'dashboard_alumno.php'; // Alumno va a su NUEVO dashboard
+                        } else {
+                            destino = 'login.php'; // Seguridad
                         }
                         
                         Swal.fire({
@@ -123,7 +136,6 @@
                         });
 
                     } else {
-                        // Error de lógica
                         Toast.fire({
                             icon: 'error',
                             title: response.mensaje
@@ -133,7 +145,6 @@
                     }
                 },
                 error: function(jqXHR) {
-                    // Error de conexión
                     let errorMsg = 'Error de conexión. Inténtalo de nuevo.';
                     if(jqXHR.responseJSON && jqXHR.responseJSON.mensaje){
                         errorMsg = jqXHR.responseJSON.mensaje;
