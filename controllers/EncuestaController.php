@@ -177,10 +177,13 @@ class EncuestaController {
 
     /**
      * Obtiene la lista de encuestas públicas para los alumnos.
+     * @param string|null $searchTerm Término de búsqueda opcional.
      */
-    public function listarEncuestasPublicas() {
+    public function listarEncuestasPublicas($searchTerm = null) {
         try {
-            $encuestas = $this->modeloEncuesta->getPublicas();
+            // ✅ Le pasamos el $searchTerm (que puede ser null) al modelo
+            $encuestas = $this->modeloEncuesta->getPublicas($searchTerm);
+            
             return [
                 'estado' => 200, 
                 'success' => true, 

@@ -297,12 +297,13 @@ class Encuesta {
     /**
      * OBTIENE ENCUESTAS PÚBLICAS (PARA ALUMNOS)
      * Busca y devuelve todas las encuestas que están 'publicada'.
-     * También trae el nombre del encuestador si la encuesta no es anónima.
+     * Si se provee un $searchTerm, filtra los resultados.
+     * @param string|null $searchTerm Término de búsqueda opcional.
      * @return array Un array con las encuestas públicas.
      */
-    public function getPublicas() {
+    public function getPublicas($searchTerm = null) {
+        
         // Unimos con Usuarios para obtener el nombre del encuestador
-        // Si la visibilidad es 'identificada', mostramos el nombre, si no, mostramos 'Anónimo'
         $query = "SELECT 
                     e.id_encuesta, e.titulo, e.descripcion, e.visibilidad, e.fecha_creacion,
                     CASE 
@@ -311,10 +312,39 @@ class Encuesta {
                     END AS encuestador_nombre
                   FROM encuestas e
                   JOIN usuarios u ON e.id_encuestador = u.id_usuario
-                  WHERE e.estado = 'publicada'
-                  ORDER BY e.fecha_creacion DESC";
+                  WHERE e.estado = 'publicada'";
+        
+        $params = [];
+        $types = "";
+
+        // --- ✅ INICIO DE LA LÓGICA DE BÚSQUEDA ---
+        // Si el frontend nos envió un término de búsqueda, lo añadimos a la consulta
+        if ($searchTerm !== null) {
+            // Añadimos las condiciones OR para buscar en título, descripción O nombre del encuestador
+            $query .= " AND (
+                            e.titulo LIKE ? 
+                            OR e.descripcion LIKE ? 
+                            OR CONCAT(u.nombre, ' ', u.apellido) LIKE ?
+                        )";
+            
+            // Preparamos el término para el SQL (con comodines %)
+            $likeTerm = "%{$searchTerm}%";
+            
+            // Añadimos el parámetro 3 veces (uno por cada '?')
+            $params = [$likeTerm, $likeTerm, $likeTerm];
+            $types = "sss";
+        }
+        // --- ✅ FIN DE LA LÓGICA DE BÚSQUEDA ---
+
+        $query .= " ORDER BY e.fecha_creacion DESC";
         
         $stmt = $this->conexion->prepare($query);
+
+        // Si hay parámetros (es decir, si estamos buscando), los "atamos" (bind)
+        if (!empty($params)) {
+            $stmt->bind_param($types, ...$params);
+        }
+        
         $stmt->execute();
         
         $resultado = $stmt->get_result();
@@ -536,5 +566,7 @@ class Encuesta {
         $stmt->close();
         return $encuestas;
     }
+
+    
 }
 ?>

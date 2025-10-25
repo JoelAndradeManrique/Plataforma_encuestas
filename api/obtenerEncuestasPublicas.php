@@ -19,8 +19,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     exit();
 }
 
+// --- ✅ INICIO DE LÓGICA DE BÚSQUEDA ---
+// Verificamos si el frontend envió un parámetro "search" en la URL
+$searchTerm = null;
+if (isset($_GET['search']) && !empty(trim($_GET['search']))) {
+    $searchTerm = trim($_GET['search']);
+}
+// --- ✅ FIN DE LÓGICA DE BÚSQUEDA ---
+
+
 $controlador = new EncuestaController($conexion);
-$respuesta = $controlador->listarEncuestasPublicas();
+// ✅ Le pasamos el término de búsqueda (o null) al controlador
+$respuesta = $controlador->listarEncuestasPublicas($searchTerm);
 
 http_response_code($respuesta['estado']);
 echo json_encode($respuesta);
