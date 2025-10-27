@@ -10,67 +10,109 @@ class Encuesta {
 
     /**
      * Crea una nueva encuesta, sus preguntas y sus opciones usando una transacción.
-     * @param array $datos Datos de la encuesta (titulo, desc, visibilidad, id_encuestador, preguntas[])
+     * @param array $datos Datos de la encuesta (titulo, desc, visibilidad, id_encuestador, estado, preguntas[])
      * @return int|false El ID de la nueva encuesta si tiene éxito, false si falla.
      */
     public function create($datos) {
         // Iniciar transacción
         $this->conexion->begin_transaction();
 
+        $stmt_encuesta = null; // Inicializar variables de statement
+        $stmt_pregunta = null;
+        $stmt_opcion = null;
+
         try {
+            // Usa el estado recibido o default a 'borrador' si no viene
+            $estado = isset($datos['estado']) && in_array($datos['estado'], ['publicada', 'borrador']) ? $datos['estado'] : 'borrador';
+
             // 1. Insertar la Encuesta principal
-            $estado_inicial = 'publicada'; // Requerimiento: "debe ser visible"
-            $query_encuesta = "INSERT INTO encuestas (id_encuestador, titulo, descripcion, visibilidad, estado) 
+            $query_encuesta = "INSERT INTO encuestas (id_encuestador, titulo, descripcion, visibilidad, estado)
                                VALUES (?, ?, ?, ?, ?)";
-            
+
             $stmt_encuesta = $this->conexion->prepare($query_encuesta);
+            if (!$stmt_encuesta) { throw new Exception("Prepare failed (encuesta): ".$this->conexion->error); }
+
             $stmt_encuesta->bind_param("issss",
                 $datos['id_encuestador'],
                 $datos['titulo'],
                 $datos['descripcion'],
                 $datos['visibilidad'],
-                $estado_inicial
+                $estado // Usar el estado recibido/default
             );
             $stmt_encuesta->execute();
-            $id_encuesta = $this->conexion->insert_id; // Obtener el ID de la encuesta recién creada
-            $stmt_encuesta->close();
+            if ($stmt_encuesta->errno) { throw new Exception("Execute failed (encuesta): ".$stmt_encuesta->error); } // Check execute error
+            $id_encuesta = $this->conexion->insert_id;
+            $stmt_encuesta->close(); // Cerrar statement aquí
+
+            // Verificar que se obtuvo un ID válido
+             if (!$id_encuesta) {
+                 throw new Exception("Failed to get insert ID for encuesta.");
+             }
 
             // 2. Insertar las Preguntas
-            $query_pregunta = "INSERT INTO preguntas (id_encuesta, texto_pregunta, tipo_pregunta, orden) 
+            $query_pregunta = "INSERT INTO preguntas (id_encuesta, texto_pregunta, tipo_pregunta, orden)
                                VALUES (?, ?, ?, ?)";
             $stmt_pregunta = $this->conexion->prepare($query_pregunta);
+            if (!$stmt_pregunta) { throw new Exception("Prepare failed (pregunta): ".$this->conexion->error); }
 
             // 3. Insertar las Opciones
-            $query_opcion = "INSERT INTO opciones (id_pregunta, texto_opcion, valor_escala) 
+            $query_opcion = "INSERT INTO opciones (id_pregunta, texto_opcion, valor_escala)
                              VALUES (?, ?, ?)";
             $stmt_opcion = $this->conexion->prepare($query_opcion);
+             if (!$stmt_opcion) { throw new Exception("Prepare failed (opcion): ".$this->conexion->error); }
 
-            foreach ($datos['preguntas'] as $pregunta) {
-                // Insertar la pregunta
-                $stmt_pregunta->bind_param("issi",
-                    $id_encuesta,
-                    $pregunta['texto_pregunta'],
-                    $pregunta['tipo_pregunta'],
-                    $pregunta['orden']
-                );
-                $stmt_pregunta->execute();
-                $id_pregunta = $this->conexion->insert_id; // Obtener el ID de la pregunta
+            // Iterar sobre las preguntas recibidas
+            if (!empty($datos['preguntas']) && is_array($datos['preguntas'])) {
+                foreach ($datos['preguntas'] as $index => $pregunta) {
+                     // Asegurar que los datos necesarios están presentes
+                     if (empty($pregunta['texto_pregunta']) || empty($pregunta['tipo_pregunta'])) {
+                         throw new Exception("Missing data for pregunta at index $index.");
+                     }
+                    $orden = isset($pregunta['orden']) ? $pregunta['orden'] : ($index + 1); // Usar orden o índice
 
-                // Si la pregunta tiene opciones, insertarlas
-                if (!empty($pregunta['opciones'])) {
-                    foreach ($pregunta['opciones'] as $opcion) {
-                        $valor = isset($opcion['valor_escala']) ? intval($opcion['valor_escala']) : null;
-                        $stmt_opcion->bind_param("isi",
-                            $id_pregunta,
-                            $opcion['texto_opcion'],
-                            $valor
-                        );
-                        $stmt_opcion->execute();
+                    // Insertar la pregunta
+                    $stmt_pregunta->bind_param("issi",
+                        $id_encuesta,
+                        $pregunta['texto_pregunta'],
+                        $pregunta['tipo_pregunta'],
+                        $orden
+                    );
+                    $stmt_pregunta->execute();
+                     if ($stmt_pregunta->errno) { throw new Exception("Execute failed (pregunta $index): ".$stmt_pregunta->error); }
+                    $id_pregunta = $this->conexion->insert_id;
+                     if (!$id_pregunta) { throw new Exception("Failed to get insert ID for pregunta at index $index."); }
+
+
+                    // Si la pregunta tiene opciones, insertarlas
+                    if (!empty($pregunta['opciones']) && is_array($pregunta['opciones'])) {
+                        foreach ($pregunta['opciones'] as $opcion) {
+                             // Validar que la opción tenga texto antes de insertar
+                             if (empty($opcion['texto_opcion'])) {
+                                 // Podrías lanzar una excepción o simplemente saltar esta opción
+                                 // throw new Exception("Empty texto_opcion found for pregunta $id_pregunta");
+                                 continue; // Saltar opciones vacías
+                             }
+
+                            $valor = isset($opcion['valor_escala']) ? intval($opcion['valor_escala']) : null;
+                            $stmt_opcion->bind_param("isi",
+                                $id_pregunta,
+                                $opcion['texto_opcion'],
+                                $valor
+                            );
+                            $stmt_opcion->execute();
+                             if ($stmt_opcion->errno) { throw new Exception("Execute failed (opcion for pregunta $id_pregunta): ".$stmt_opcion->error); }
+                        }
                     }
                 }
+            } else {
+                 // Permitir crear encuesta sin preguntas si se guarda como borrador? O requerir al menos una?
+                 // Por ahora, lanzamos error si no hay preguntas.
+                 throw new Exception("No questions provided or invalid format.");
             }
-            $stmt_pregunta->close();
-            $stmt_opcion->close();
+
+            // Cerrar statements preparados (si se crearon)
+             if ($stmt_pregunta) $stmt_pregunta->close();
+             if ($stmt_opcion) $stmt_opcion->close();
 
             // Si todo salió bien, confirmar la transacción
             $this->conexion->commit();
@@ -79,7 +121,12 @@ class Encuesta {
         } catch (Exception $e) {
             // Si algo falló, deshacer la transacción
             $this->conexion->rollback();
-            // Opcional: registrar el error $e->getMessage()
+             // Cerrar statements si aún están abiertos en caso de error temprano
+             // Usar ->ping() no es estándar ni fiable para verificar si está abierto
+             if ($stmt_encuesta instanceof mysqli_stmt) $stmt_encuesta->close();
+             if ($stmt_pregunta instanceof mysqli_stmt) $stmt_pregunta->close();
+             if ($stmt_opcion instanceof mysqli_stmt) $stmt_opcion->close();
+            error_log("Error creating survey: " . $e->getMessage()); // Registrar el error
             return false;
         }
     }
@@ -577,6 +624,71 @@ class Encuesta {
         
         $stmt->close();
         return $encuestas;
+    }
+
+    /**
+     * OBTIENE DETALLES COMPLETOS PARA EDITAR UN BORRADOR
+     * Obtiene todos los datos de una encuesta (incluyendo preguntas y opciones)
+     * si pertenece al encuestador y está en estado 'borrador'.
+     * @param int $id_encuesta El ID de la encuesta.
+     * @param int $id_encuestador El ID del propietario (desde la sesión).
+     * @return array|null|false Array con datos si es válido, null si no cumple criterios, false si error DB.
+     */
+    public function getEditableDetails($id_encuesta, $id_encuestador) {
+        // 1. Obtener la encuesta y verificar propiedad y estado 'borrador'
+        $query_encuesta = "SELECT id_encuesta, titulo, descripcion, visibilidad, estado
+                           FROM encuestas
+                           WHERE id_encuesta = ? AND id_encuestador = ? AND estado = 'borrador'";
+        $stmt_encuesta = $this->conexion->prepare($query_encuesta);
+        if (!$stmt_encuesta) { error_log("Prepare failed (getEditable encuesta): ".$this->conexion->error); return false; }
+        $stmt_encuesta->bind_param("ii", $id_encuesta, $id_encuestador);
+        $stmt_encuesta->execute();
+        $encuesta = $stmt_encuesta->get_result()->fetch_assoc();
+        $stmt_encuesta->close();
+
+        // Si no se encontró o no es borrador, devolver null
+        if (!$encuesta) {
+            return null;
+        }
+
+        // 2. Obtener las preguntas asociadas
+        $query_preguntas = "SELECT id_pregunta, texto_pregunta, tipo_pregunta, orden
+                            FROM preguntas
+                            WHERE id_encuesta = ? ORDER BY orden ASC";
+        $stmt_preguntas = $this->conexion->prepare($query_preguntas);
+        if (!$stmt_preguntas) { error_log("Prepare failed (getEditable preguntas): ".$this->conexion->error); return false; }
+        $stmt_preguntas->bind_param("i", $id_encuesta);
+        $stmt_preguntas->execute();
+        $preguntas = $stmt_preguntas->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt_preguntas->close();
+
+        // Si no hay preguntas, devolver la encuesta sin ellas (aún es editable)
+        if (empty($preguntas)) {
+             $encuesta['preguntas'] = [];
+             return $encuesta;
+        }
+
+
+        // 3. Obtener las opciones para cada pregunta
+        $query_opciones = "SELECT id_opcion, texto_opcion, valor_escala
+                           FROM opciones
+                           WHERE id_pregunta = ? ORDER BY id_opcion ASC"; // Ordenar opciones consistentemente
+        $stmt_opciones = $this->conexion->prepare($query_opciones);
+        if (!$stmt_opciones) { error_log("Prepare failed (getEditable opciones): ".$this->conexion->error); return false; } // Error si falla preparar opciones
+
+        $preguntas_con_opciones = [];
+        foreach ($preguntas as $pregunta) {
+            $stmt_opciones->bind_param("i", $pregunta['id_pregunta']);
+            $stmt_opciones->execute();
+            $opciones_result = $stmt_opciones->get_result();
+            $opciones = $opciones_result->fetch_all(MYSQLI_ASSOC);
+            $pregunta['opciones'] = $opciones; // Añadir array de opciones a la pregunta
+            $preguntas_con_opciones[] = $pregunta;
+        }
+        $stmt_opciones->close(); // Cerrar statement fuera del bucle
+
+        $encuesta['preguntas'] = $preguntas_con_opciones; // Añadir preguntas con sus opciones
+        return $encuesta;
     }
 
     

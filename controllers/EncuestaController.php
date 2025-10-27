@@ -14,7 +14,7 @@ class EncuestaController {
 
     /**
      * Procesa la creación de una nueva encuesta.
-     * @param array $datos Datos de la encuesta (incluyendo id_encuestador desde la sesión).
+     * @param array $datos Datos de la encuesta (incluyendo id_encuestador desde la sesión y opcionalmente estado).
      * @return array Respuesta con estado y mensaje.
      */
     public function crearNuevaEncuesta($datos) {
@@ -27,37 +27,46 @@ class EncuestaController {
              return ['estado' => 400, 'success' => false, 'mensaje' => 'Visibilidad no válida.'];
         }
 
+        // Permitir crear sin preguntas si es borrador? Por ahora requerimos al menos una.
         if (empty($datos['preguntas']) || !is_array($datos['preguntas'])) {
              return ['estado' => 400, 'success' => false, 'mensaje' => 'La encuesta debe tener al menos una pregunta.'];
         }
 
-        // Validación más profunda de preguntas (opcional pero recomendado)
+        // Validación opcional del estado (si viene)
+        if (isset($datos['estado']) && !in_array($datos['estado'], ['publicada', 'borrador'])) {
+             return ['estado' => 400, 'success' => false, 'mensaje' => 'Estado no válido. Debe ser "publicada" o "borrador".'];
+        }
+
+        // Validación más profunda de preguntas
         $tipos_validos = ['opcion_multiple', 'seleccion_multiple', 'escala', 'abierta', 'si_no'];
         foreach($datos['preguntas'] as $pregunta) {
             if(empty($pregunta['texto_pregunta']) || empty($pregunta['tipo_pregunta'])) {
                  return ['estado' => 400, 'success' => false, 'mensaje' => 'Todas las preguntas deben tener texto y tipo.'];
             }
             if(!in_array($pregunta['tipo_pregunta'], $tipos_validos)) {
-                 return ['estado' => 400, 'success' => false, 'mensaje' => "Tipo de pregunta no válido: " . $pregunta['tipo_pregunta']];
+                 return ['estado' => 400, 'success' => false, 'mensaje' => "Tipo de pregunta no válido: " . htmlspecialchars($pregunta['tipo_pregunta'])]; // Sanitize output
             }
+            // Podríamos añadir validación de opciones aquí si quisiéramos ser más estrictos
         }
-        
+
         // Si todo es válido, intentar crear en la DB
         $id_encuesta = $this->modeloEncuesta->create($datos);
 
         if ($id_encuesta) {
             return [
                 'estado' => 201, // 201 Created
-                'success' => true, 
-                'mensaje' => 'Encuesta creada con éxito.',
+                'success' => true,
+                'mensaje' => 'Encuesta guardada con éxito.', // Cambiado mensaje a 'guardada'
                 'id_encuesta' => $id_encuesta
             ];
         } else {
+            // Obtener el error específico si es posible (depende de cómo manejes errores en el modelo)
+            $db_error = property_exists($this->conexion, 'error') ? $this->conexion->error : 'Error desconocido en DB.';
             return [
                 'estado' => 500, // Internal Server Error
-                'success' => false, 
-                'mensaje' => 'Error al crear la encuesta en la base de datos.',
-                'error_db' => $this->conexion->error
+                'success' => false,
+                'mensaje' => 'Error al guardar la encuesta en la base de datos.',
+                'error_db' => $db_error // Incluir error de DB para depuración (¡cuidado en producción!)
             ];
         }
     }
@@ -316,6 +325,48 @@ class EncuestaController {
                 'success' => false, 
                 'mensaje' => 'Error al obtener el historial de encuestas.',
                 'error_db' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Obtiene los datos completos de una encuesta para poder editarla.
+     * Verifica que sea un borrador y pertenezca al encuestador.
+     * @param int $id_encuesta El ID de la encuesta.
+     * @param int $id_encuestador El ID del encuestador (de la sesión).
+     * @return array Respuesta con estado y datos.
+     */
+    public function obtenerEncuestaParaEditar($id_encuesta, $id_encuestador) {
+        if (empty($id_encuesta) || empty($id_encuestador)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'Faltan IDs requeridos.'];
+        }
+
+        try {
+            $encuesta_editable = $this->modeloEncuesta->getEditableDetails($id_encuesta, $id_encuestador);
+
+            if ($encuesta_editable === null) {
+                // No encontrado, no es borrador, o no es propietario
+                return ['estado' => 404, 'success' => false, 'mensaje' => 'Borrador de encuesta no encontrado, no es tuyo, o ya fue publicado.'];
+            }
+            if ($encuesta_editable === false) {
+                 // Error de base de datos en el modelo
+                 return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de base de datos al obtener los detalles.'];
+            }
+
+            // ¡Éxito! Devolver el JSON con todos los datos
+            return [
+                'estado' => 200,
+                'success' => true,
+                'encuesta' => $encuesta_editable // Contiene todo: encuesta, preguntas, opciones
+            ];
+
+        } catch (Exception $e) {
+            error_log("Exception in obtenerEncuestaParaEditar: " . $e->getMessage());
+            return [
+                'estado' => 500,
+                'success' => false,
+                'mensaje' => 'Error al procesar la solicitud de edición.',
+                'error_db' => $e->getMessage() // Opcional
             ];
         }
     }
