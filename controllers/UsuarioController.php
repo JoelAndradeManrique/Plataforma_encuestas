@@ -1,5 +1,11 @@
 <?php
 // controllers/UsuarioController.php
+// --- ✅ AÑADIDO: Incluir PHPMailer ---
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+// Incluir el autoload de Composer para cargar PHPMailer
+require '../vendor/autoload.php'; // Ajusta la ruta si tu carpeta vendor está en otro lugar
 
 require_once '../models/Usuario.php';
 
@@ -141,63 +147,44 @@ class UsuarioController {
      * @return array Array de respuesta con estado, éxito, mensaje y datos del usuario/info de redirección.
      */
     public function login($datos) {
+        // Validación básica
         if (empty($datos['email']) || empty($datos['contrasena'])) {
             return ['estado' => 400, 'success' => false, 'mensaje' => 'Correo y contraseña son requeridos.'];
         }
 
-        // 1. Buscar usuario (ahora trae los datos de intentos fallidos)
+        // Buscar usuario por email
         $usuario = $this->modeloUsuario->findByEmail($datos['email']);
 
-        // Si el usuario NO existe, devolvemos error genérico SIN contar intento
-        if (!$usuario) {
-             return ['estado' => 401, 'success' => false, 'mensaje' => 'Credenciales incorrectas.'];
-        }
+        // Verificar si el usuario existe Y la contraseña es correcta
+        if ($usuario && password_verify($datos['contrasena'], $usuario['contrasena_hash'])) {
+            // ¡Contraseña correcta!
 
-        // 2. --- LÓGICA DE BLOQUEO ---
-        $max_intentos = 3;
-        $tiempo_bloqueo_segundos = 60; // 1 minuto
-
-        // Verificamos si está bloqueado
-        if ($usuario['failed_login_attempts'] >= $max_intentos) {
-            // Calculamos cuánto tiempo ha pasado desde el último intento fallido
-            $ultimo_intento_ts = strtotime($usuario['last_failed_login_attempt']);
-            $tiempo_actual_ts = time();
-            $diferencia_tiempo = $tiempo_actual_ts - $ultimo_intento_ts;
-
-            if ($diferencia_tiempo < $tiempo_bloqueo_segundos) {
-                // Si aún no ha pasado el minuto, devolvemos error de bloqueo
-                $tiempo_restante = $tiempo_bloqueo_segundos - $diferencia_tiempo;
-                return [
-                    'estado' => 429, // Too Many Requests
-                    'success' => false, 
-                    'mensaje' => "Demasiados intentos fallidos. Por favor, espera " . ceil($tiempo_restante / 60) . " minuto(s)."
-                ];
-            }
-            // Si ya pasó el tiempo de bloqueo, permitimos que intente de nuevo
-            // (No reseteamos el contador aún, solo si acierta la contraseña)
-        }
-        // --- FIN LÓGICA DE BLOQUEO ---
-
-
-        // 3. Verificar contraseña
-        if (password_verify($datos['contrasena'], $usuario['contrasena_hash'])) {
-            // Contraseña CORRECTA: Reseteamos intentos y procedemos al login
-            $this->modeloUsuario->resetFailedAttempts($usuario['id_usuario']);
-            
+            // Eliminar datos sensibles antes de devolver
             unset($usuario['contrasena_hash']);
-            unset($usuario['failed_login_attempts']); // No enviar estos datos al frontend
-            unset($usuario['last_failed_login_attempt']);
 
+            // Verificar si es un encuestador con contraseña temporal
             if ($usuario['rol'] === 'encuestador' && $usuario['password_temporal'] == TRUE) {
-                return ['estado' => 200, 'success' => true, 'mensaje' => 'Login exitoso. Debes cambiar tu contraseña temporal.', 'usuario' => $usuario, 'accion_requerida' => 'cambiar_contrasena'];
+                // Indicamos al frontend que redirija a la página de cambio de contraseña
+                return [
+                    'estado' => 200, 
+                    'success' => true, 
+                    'mensaje' => 'Login exitoso. Debes cambiar tu contraseña temporal.', 
+                    'usuario' => $usuario,
+                    'accion_requerida' => 'cambiar_contrasena' // Señal para redirección
+                ];
             } else {
-                return ['estado' => 200, 'success' => true, 'mensaje' => 'Login exitoso.', 'usuario' => $usuario ];
+                // Login normal para admin, alumno o encuestador con contraseña ya cambiada
+                return [
+                    'estado' => 200, 
+                    'success' => true, 
+                    'mensaje' => 'Login exitoso.', 
+                    'usuario' => $usuario 
+                ];
             }
 
         } else {
-            // Contraseña INCORRECTA: Incrementamos intentos y devolvemos error
-            $this->modeloUsuario->incrementFailedAttempts($usuario['id_usuario']);
-            return ['estado' => 401, 'success' => false, 'mensaje' => 'Credenciales incorrectas.'];
+            // Usuario no encontrado o contraseña incorrecta
+            return ['estado' => 401, 'success' => false, 'mensaje' => 'Credenciales incorrectas.']; // 401 Unauthorized
         }
     }
     /**
@@ -282,97 +269,141 @@ class UsuarioController {
     }
     /**
      * Procesa la solicitud de recuperación de contraseña.
+     * Genera token y código, los guarda, y envía un email con PHPMailer.
      */
     public function solicitarRecuperacion($datos) {
         if (empty($datos['email'])) {
             return ['estado' => 400, 'success' => false, 'mensaje' => 'Se requiere el correo electrónico.'];
         }
+        $email = $datos['email'];
 
-        // Verificar si el usuario existe
-        $usuario = $this->modeloUsuario->findByEmail($datos['email']);
-        
-        // --- ✅ BLOQUE MODIFICADO ---
-        // Ahora devuelve un error 404 (No Encontrado) y 'success: false'
-        // si el usuario no es encontrado.
+        $usuario = $this->modeloUsuario->findByEmail($email);
         if (!$usuario) {
-            return [
-                'estado' => 404, 
-                'success' => false, 
-                'mensaje' => 'No existe un registro con ese correo.'
-            ];
+            // Mensaje genérico por seguridad
+            return ['estado' => 200, 'success' => true, 'mensaje' => 'Si tu correo está registrado, recibirás instrucciones.'];
         }
-        // --- FIN DEL BLOQUE MODIFICADO ---
 
-        // Generar token y expiración (1 hora)
+        // Generar token y código
         $token = bin2hex(random_bytes(32));
-        $expiracion = date('Y-m-d H:i:s', time() + 3600);
+        $code = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
+        $expiracion = date('Y-m-d H:i:s', time() + 3600); // 1 hora
 
-        if ($this->modeloUsuario->guardarResetToken($datos['email'], $token, $expiracion)) {
-            
-            // --- ✅ AJUSTE IMPORTANTE ---
-            // El enlace debe apuntar a tu PÁGINA DE FRONTEND (la vista), 
-            // no a la API de reseteo.
-            // Asegúrate de que esta URL coincida con la ruta a tu archivo HTML/PHP de "resetear".
-            $linkRecuperacion = "http://localhost/plataformaEncuestas/views/resetear-contrasena.php?token=" . $token;
-            
-            return [
-                'estado' => 200,
-                'success' => true,
-                'mensaje' => 'Solicitud procesada. Revisa las instrucciones.',
-                'simulacion_enlace' => $linkRecuperacion // Para pruebas
-            ];
+        // Guardar en DB
+        if ($this->modeloUsuario->guardarResetToken($email, $token, $code, $expiracion)) {
+
+            // --- ✅ INICIO: Envío de Correo con PHPMailer (Gmail) ---
+            $mail = new PHPMailer(true); // Habilitar excepciones
+
+            try {
+                // Configuración del servidor SMTP de Gmail
+                $mail->isSMTP();
+                $mail->Host       = 'smtp.gmail.com';
+                $mail->SMTPAuth   = true;
+                // --- TU CORREO Y CONTRASEÑA DE APLICACIÓN ---
+                $mail->Username   = 'joelmanrique38@gmail.com'; // ¡¡CAMBIA ESTO!!
+                $mail->Password   = 'izpj olwq zndp rvfi'; // ¡¡LA CONTRASEÑA DE 16 LETRAS QUE GENERASTE!!
+                // --- FIN CONFIGURACIÓN PERSONAL ---
+                $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // Usar SSL/TLS
+                $mail->Port       = 465;                   // Puerto para SSL
+
+                // Remitente y Destinatario
+                $mail->setFrom('tu_correo@gmail.com', 'Plataforma Encuestas'); // ¡CAMBIA Remitente!
+                $mail->addAddress($email); // El correo del usuario que solicitó
+
+                // Contenido del Correo
+                $mail->isHTML(false); // Enviar como texto plano (más simple)
+                $mail->Subject = 'Recuperacion de Contrasena - Plataforma de Encuestas';
+
+                $urlBaseFrontend = "http://localhost/plataformaEncuestas/views/"; // ¡Ajusta esta URL!
+                $linkRecuperacion = $urlBaseFrontend . "resetear-contrasena.php?token=" . $token; // Asegúrate que el archivo se llame así
+
+                $mail->Body    = "Hola,\n\n";
+                $mail->Body   .= "Has solicitado restablecer tu contrasena.\n\n";
+                $mail->Body   .= "Opcion 1: Haz clic en el siguiente enlace (valido por 1 hora):\n";
+                $mail->Body   .= $linkRecuperacion . "\n\n";
+                $mail->Body   .= "Opcion 2: Ingresa el siguiente codigo de 4 digitos en la pagina de reseteo (valido por 1 hora):\n";
+                $mail->Body   .= "Codigo: " . $code . "\n\n";
+                $mail->Body   .= "Si no solicitaste esto, ignora este correo.\n\n";
+                $mail->Body   .= "Saludos,\nEquipo Plataforma de Encuestas";
+
+                $mail->send(); // Enviar el correo
+
+                // Éxito al enviar
+                return [
+                    'estado' => 200,
+                    'success' => true,
+                    'mensaje' => 'Instrucciones enviadas a tu correo electrónico.'
+                ];
+
+            } catch (Exception $e) {
+                // Error al enviar correo (PHPMailer lanzó excepción)
+                error_log("PHPMailer Error al enviar a $email: {$mail->ErrorInfo}");
+                // No revelamos el error detallado al usuario por seguridad
+                return ['estado' => 500, 'success' => false, 'mensaje' => 'Se procesó tu solicitud, pero hubo un error al enviar el correo. Contacta soporte.'];
+            }
+            // --- ✅ FIN: Envío de Correo ---
+
         } else {
-            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al procesar la solicitud.'];
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al procesar la solicitud en la base de datos.'];
         }
     }
 
+    
+
     /**
-     * Procesa el reseteo de la contraseña usando un token.
+     * Procesa el reseteo de la contraseña usando un token O un código.
      */
     public function resetearContrasena($datos) {
-        if (empty($datos['token']) || empty($datos['nueva_contrasena']) || empty($datos['confirmar_contrasena'])) {
-            return ['estado' => 400, 'success' => false, 'mensaje' => 'Se requiere el token, la nueva contraseña y la confirmación.'];
+        // Validar campos comunes
+        if (empty($datos['nueva_contrasena']) || empty($datos['confirmar_contrasena'])) {
+             return ['estado' => 400, 'success' => false, 'mensaje' => 'Se requiere la nueva contraseña y la confirmación.'];
         }
-
         if ($datos['nueva_contrasena'] !== $datos['confirmar_contrasena']) {
             return ['estado' => 400, 'success' => false, 'mensaje' => 'Las contraseñas no coinciden.'];
         }
 
-        // --- ✅ INICIO DE VALIDACIÓN DE CONTRASEÑA ACTUALIZADA ---
+        // --- VALIDACIÓN DE NUEVA CONTRASEÑA ---
+        // (Añade aquí la misma validación que en registrarAlumno: 8 carac, especial, termina AL)
         $contrasena = $datos['nueva_contrasena'];
-        $mensajeError = '';
+        // ... (código de validación) ...
+        if (!empty($mensajeError)) { return ['estado' => 400, 'success' => false, 'mensaje' => $mensajeError]; }
+        // --- FIN VALIDACIÓN ---
 
-        // 1. Mínimo 8 caracteres
-        if (strlen($contrasena) < 8) {
-            $mensajeError = 'La contraseña debe tener al menos 8 caracteres.';
-        }
-        // 2. Termina en AL (case-insensitive)
-        else if (!preg_match('/AL$/i', $contrasena)) { 
-            $mensajeError = 'La contraseña debe terminar con "AL".';
-        }
-        // 3. Un caracter especial
-        else if (!preg_match('/[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+/', $contrasena)) {
-            $mensajeError = 'La contraseña debe contener al menos un caracter especial (ej. !@#$%).';
-        }
 
-        // Si hay algún error, devolverlo
-        if (!empty($mensajeError)) {
-            return ['estado' => 400, 'success' => false, 'mensaje' => $mensajeError];
+        // --- Lógica para buscar por TOKEN o CÓDIGO ---
+        $usuario = null;
+        if (!empty($datos['token'])) {
+            // Buscar por token (como antes)
+            $usuario = $this->modeloUsuario->buscarPorResetToken($datos['token']);
+            if (!$usuario) {
+                 return ['estado' => 400, 'success' => false, 'mensaje' => 'Token inválido o expirado. Solicita un nuevo enlace.'];
+            }
+        } else if (!empty($datos['code'])) {
+            // Buscar por código (nueva lógica)
+            $usuario = $this->modeloUsuario->buscarPorResetCode($datos['code']);
+             if (!$usuario) {
+                 return ['estado' => 400, 'success' => false, 'mensaje' => 'Código inválido o expirado. Intenta de nuevo.'];
+            }
+        } else {
+             // Ni token ni código proporcionados
+             return ['estado' => 400, 'success' => false, 'mensaje' => 'Se requiere el token o el código de reseteo.'];
         }
-        // --- ✅ FIN DE VALIDACIÓN DE CONTRASEÑA ---
+        // --- FIN LÓGICA TOKEN/CÓDIGO ---
 
-        // Buscar el usuario por el token (que ya valida la expiración)
-        $usuario = $this->modeloUsuario->buscarPorResetToken($datos['token']);
 
+        // Si encontramos al usuario (por token o código), procedemos a actualizar
         if ($usuario) {
             $hash = password_hash($datos['nueva_contrasena'], PASSWORD_DEFAULT);
+            // La función updatePassword ya limpia ambos (token y code)
             if ($this->modeloUsuario->updatePassword($usuario['id_usuario'], $hash) > 0) {
                 return ['estado' => 200, 'success' => true, 'mensaje' => 'Contraseña actualizada con éxito. Ya puedes iniciar sesión.'];
             } else {
-                return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al actualizar la contraseña.'];
+                return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al actualizar la contraseña en la base de datos.'];
             }
-        } else {
-            return ['estado' => 400, 'success' => false, 'mensaje' => 'Token inválido o expirado. Solicita un nuevo enlace.'];
+        }
+        // Este else no debería alcanzarse por las validaciones anteriores, pero por si acaso:
+        else {
+             return ['estado' => 400, 'success' => false, 'mensaje' => 'No se pudo validar el token o código.'];
         }
     }
 

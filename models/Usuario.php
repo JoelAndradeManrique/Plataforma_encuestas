@@ -87,53 +87,7 @@ class Usuario {
         return $stmt->execute();
     }
     
-
-    /**
-     * Procesa el inicio de sesión del usuario.
-     * @param array $datos Contiene 'email' y 'contrasena'.
-     * @return array Array de respuesta con estado, éxito, mensaje y datos del usuario/info de redirección.
-     */
-    public function login($datos) {
-        // Validación básica
-        if (empty($datos['email']) || empty($datos['contrasena'])) {
-            return ['estado' => 400, 'success' => false, 'mensaje' => 'Correo y contraseña son requeridos.'];
-        }
-
-        // Buscar usuario por email
-        $usuario = $this->modeloUsuario->findByEmail($datos['email']);
-
-        // Verificar si el usuario existe Y la contraseña es correcta
-        if ($usuario && password_verify($datos['contrasena'], $usuario['contrasena_hash'])) {
-            // ¡Contraseña correcta!
-
-            // Eliminar datos sensibles antes de devolver
-            unset($usuario['contrasena_hash']);
-
-            // Verificar si es un encuestador con contraseña temporal
-            if ($usuario['rol'] === 'encuestador' && $usuario['password_temporal'] == TRUE) {
-                // Indicamos al frontend que redirija a la página de cambio de contraseña
-                return [
-                    'estado' => 200, 
-                    'success' => true, 
-                    'mensaje' => 'Login exitoso. Debes cambiar tu contraseña temporal.', 
-                    'usuario' => $usuario,
-                    'accion_requerida' => 'cambiar_contrasena' // Señal para redirección
-                ];
-            } else {
-                // Login normal para admin, alumno o encuestador con contraseña ya cambiada
-                return [
-                    'estado' => 200, 
-                    'success' => true, 
-                    'mensaje' => 'Login exitoso.', 
-                    'usuario' => $usuario 
-                ];
-            }
-
-        } else {
-            // Usuario no encontrado o contraseña incorrecta
-            return ['estado' => 401, 'success' => false, 'mensaje' => 'Credenciales incorrectas.']; // 401 Unauthorized
-        }
-    }
+    
     /**
      * Obtiene los datos de un usuario por su ID (sin la contraseña).
      * @param int $id_usuario
@@ -236,15 +190,23 @@ class Usuario {
     }
 
     /**
-     * Guarda un token de reseteo y su fecha de expiración para un usuario.
+     * Guarda un token Y un código de reseteo y su fecha de expiración para un usuario.
+     * Sobrescribe los anteriores, invalidándolos.
      * @param string $email
-     * @param string $token
+     * @param string $token Token largo.
+     * @param string $code Código corto (4 dígitos).
      * @param string $fechaExpiracion (Formato 'Y-m-d H:i:s')
      * @return bool
      */
-    public function guardarResetToken($email, $token, $fechaExpiracion) {
-        $stmt = $this->conexion->prepare("UPDATE Usuarios SET reset_token = ?, reset_token_expires = ? WHERE email = ?");
-        $stmt->bind_param("sss", $token, $fechaExpiracion, $email);
+    public function guardarResetToken($email, $token, $code, $fechaExpiracion) {
+        // Esta consulta actualiza (o inserta si no existe) el token y el código
+        $stmt = $this->conexion->prepare("UPDATE Usuarios SET
+                                            reset_token = ?,
+                                            reset_code = ?,
+                                            reset_token_expires = ?
+                                          WHERE email = ?");
+        // Son 4 parámetros ahora: token(s), code(s), fecha(s), email(s)
+        $stmt->bind_param("ssss", $token, $code, $fechaExpiracion, $email);
         return $stmt->execute();
     }
 
@@ -254,22 +216,48 @@ class Usuario {
      * @return array|null Null si no es válido.
      */
     public function buscarPorResetToken($token) {
-        $query = "SELECT id_usuario, email FROM Usuarios WHERE reset_token = ? AND reset_token_expires > NOW()";
+        // La consulta sigue igual: busca por token y verifica expiración
+        $query = "SELECT id_usuario, email FROM Usuarios
+                  WHERE reset_token = ? AND reset_token_expires > NOW()";
         $stmt = $this->conexion->prepare($query);
         $stmt->bind_param("s", $token);
+        $stmt->execute();
+        $resultado = $stmt->get_result();
+        // No necesitamos limpiar el código aquí, lo haremos en updatePassword
+        return $resultado->fetch_assoc();
+    }
+
+    /**
+     * Busca un usuario por su código de reseteo (4 dígitos) y verifica que no haya expirado.
+     * @param string $code El código de 4 dígitos.
+     * @return array|null Null si no es válido o no encontrado.
+     */
+    public function buscarPorResetCode($code) {
+        // Busca por código y verifica expiración (usa la misma columna de expiración)
+        $query = "SELECT id_usuario, email FROM Usuarios
+                  WHERE reset_code = ? AND reset_token_expires > NOW()";
+        $stmt = $this->conexion->prepare($query);
+        $stmt->bind_param("s", $code); // El código es string
         $stmt->execute();
         $resultado = $stmt->get_result();
         return $resultado->fetch_assoc();
     }
 
     /**
-     * Actualiza la contraseña de un usuario y limpia el token de reseteo.
+     * Actualiza la contraseña de un usuario y limpia el token Y el código de reseteo.
      * @param int $id_usuario
      * @param string $contrasena_hash Nueva contraseña hasheada.
      * @return int Número de filas afectadas.
      */
     public function updatePassword($id_usuario, $contrasena_hash) {
-        $query = "UPDATE Usuarios SET contrasena_hash = ?, reset_token = NULL, reset_token_expires = NULL, password_temporal = FALSE WHERE id_usuario = ?";
+        // Limpiamos reset_token y reset_code
+        $query = "UPDATE Usuarios SET
+                    contrasena_hash = ?,
+                    reset_token = NULL,
+                    reset_code = NULL,
+                    reset_token_expires = NULL,
+                    password_temporal = FALSE
+                  WHERE id_usuario = ?";
         $stmt = $this->conexion->prepare($query);
         $stmt->bind_param("si", $contrasena_hash, $id_usuario);
         $stmt->execute();
