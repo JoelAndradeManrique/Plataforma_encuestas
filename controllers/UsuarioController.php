@@ -147,44 +147,63 @@ class UsuarioController {
      * @return array Array de respuesta con estado, éxito, mensaje y datos del usuario/info de redirección.
      */
     public function login($datos) {
-        // Validación básica
         if (empty($datos['email']) || empty($datos['contrasena'])) {
             return ['estado' => 400, 'success' => false, 'mensaje' => 'Correo y contraseña son requeridos.'];
         }
 
-        // Buscar usuario por email
+        // 1. Buscar usuario (ahora trae los datos de intentos fallidos)
         $usuario = $this->modeloUsuario->findByEmail($datos['email']);
 
-        // Verificar si el usuario existe Y la contraseña es correcta
-        if ($usuario && password_verify($datos['contrasena'], $usuario['contrasena_hash'])) {
-            // ¡Contraseña correcta!
+        // Si el usuario NO existe, devolvemos error genérico SIN contar intento
+        if (!$usuario) {
+             return ['estado' => 401, 'success' => false, 'mensaje' => 'Credenciales incorrectas.'];
+        }
 
-            // Eliminar datos sensibles antes de devolver
+        // 2. --- LÓGICA DE BLOQUEO ---
+        $max_intentos = 3;
+        $tiempo_bloqueo_segundos = 60; // 1 minuto
+
+        // Verificamos si está bloqueado
+        if ($usuario['failed_login_attempts'] >= $max_intentos) {
+            // Calculamos cuánto tiempo ha pasado desde el último intento fallido
+            $ultimo_intento_ts = strtotime($usuario['last_failed_login_attempt']);
+            $tiempo_actual_ts = time();
+            $diferencia_tiempo = $tiempo_actual_ts - $ultimo_intento_ts;
+
+            if ($diferencia_tiempo < $tiempo_bloqueo_segundos) {
+                // Si aún no ha pasado el minuto, devolvemos error de bloqueo
+                $tiempo_restante = $tiempo_bloqueo_segundos - $diferencia_tiempo;
+                return [
+                    'estado' => 429, // Too Many Requests
+                    'success' => false, 
+                    'mensaje' => "Demasiados intentos fallidos. Por favor, espera " . ceil($tiempo_restante / 60) . " minuto(s)."
+                ];
+            }
+            // Si ya pasó el tiempo de bloqueo, permitimos que intente de nuevo
+            // (No reseteamos el contador aún, solo si acierta la contraseña)
+        }
+        // --- FIN LÓGICA DE BLOQUEO ---
+
+
+        // 3. Verificar contraseña
+        if (password_verify($datos['contrasena'], $usuario['contrasena_hash'])) {
+            // Contraseña CORRECTA: Reseteamos intentos y procedemos al login
+            $this->modeloUsuario->resetFailedAttempts($usuario['id_usuario']);
+            
             unset($usuario['contrasena_hash']);
+            unset($usuario['failed_login_attempts']); // No enviar estos datos al frontend
+            unset($usuario['last_failed_login_attempt']);
 
-            // Verificar si es un encuestador con contraseña temporal
             if ($usuario['rol'] === 'encuestador' && $usuario['password_temporal'] == TRUE) {
-                // Indicamos al frontend que redirija a la página de cambio de contraseña
-                return [
-                    'estado' => 200, 
-                    'success' => true, 
-                    'mensaje' => 'Login exitoso. Debes cambiar tu contraseña temporal.', 
-                    'usuario' => $usuario,
-                    'accion_requerida' => 'cambiar_contrasena' // Señal para redirección
-                ];
+                return ['estado' => 200, 'success' => true, 'mensaje' => 'Login exitoso. Debes cambiar tu contraseña temporal.', 'usuario' => $usuario, 'accion_requerida' => 'cambiar_contrasena'];
             } else {
-                // Login normal para admin, alumno o encuestador con contraseña ya cambiada
-                return [
-                    'estado' => 200, 
-                    'success' => true, 
-                    'mensaje' => 'Login exitoso.', 
-                    'usuario' => $usuario 
-                ];
+                return ['estado' => 200, 'success' => true, 'mensaje' => 'Login exitoso.', 'usuario' => $usuario ];
             }
 
         } else {
-            // Usuario no encontrado o contraseña incorrecta
-            return ['estado' => 401, 'success' => false, 'mensaje' => 'Credenciales incorrectas.']; // 401 Unauthorized
+            // Contraseña INCORRECTA: Incrementamos intentos y devolvemos error
+            $this->modeloUsuario->incrementFailedAttempts($usuario['id_usuario']);
+            return ['estado' => 401, 'success' => false, 'mensaje' => 'Credenciales incorrectas.'];
         }
     }
     /**
