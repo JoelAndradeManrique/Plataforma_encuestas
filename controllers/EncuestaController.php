@@ -255,6 +255,8 @@ class EncuestaController {
         }
     }
 
+    
+
     /**
      * Obtiene las respuestas de un alumno para una encuesta específica.
      * @param int $id_encuesta El ID de la encuesta.
@@ -369,6 +371,29 @@ class EncuestaController {
                 'error_db' => $e->getMessage() // Opcional
             ];
         }
+    }
+
+
+    /**
+     * Obtiene las respuestas de un alumno específico PARA EL ENCUESTADOR.
+     * Verifica la propiedad de la encuesta.
+     * @param int $id_encuesta
+     * @param int $id_alumno_a_ver
+     * @param int $id_encuestador_logueado
+     * @return array Respuesta con estado y datos.
+     */
+    public function obtenerRespuestasDeAlumno($id_encuesta, $id_alumno_a_ver, $id_encuestador_logueado) {
+        // 1. Verificar propiedad (usando la función del modelo)
+        // (¡Asegúrate de haber añadido también 'checkSurveyOwnership' al modelo!)
+        $esPropietario = $this->modeloEncuesta->checkSurveyOwnership($id_encuesta, $id_encuestador_logueado);
+        if (!$esPropietario) {
+            return ['estado' => 403, 'success' => false, 'mensaje' => 'No eres el propietario de esta encuesta.'];
+        }
+
+        // 2. Obtener respuestas (reutilizando la función que ya teníamos)
+        // Pasamos los IDs al controlador (que los pasará al modelo)
+        // Usamos la función 'obtenerMisRespuestas' que ya existe en este controlador
+        return $this->obtenerMisRespuestas($id_encuesta, $id_alumno_a_ver);
     }
 }
 ?>
