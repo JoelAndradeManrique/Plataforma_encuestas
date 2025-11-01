@@ -17,25 +17,22 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
     <title>Panel de Encuestador</title>
 
     <link rel="stylesheet" href="../css/style.css">
-
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-   <style>
-        /* Reseteo del body (para anular tu style.css) */
+    <style>
+        /* Reseteo del body */
         body { display: block; justify-content: normal; align-items: normal; padding: 0; background-color: #f4f7f6; font-family: Arial, sans-serif; margin: 0; }
         .dashboard-wrapper { display: flex; flex-direction: column; min-height: 100vh; }
 
         /* Cabecera */
         .dashboard-header { background: #fff; border-bottom: 1px solid #ddd; padding: 0 30px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; width: 100%; box-sizing: border-box; min-height: 60px; }
         .header-left-group { display: flex; align-items: center; height: 100%; }
-        .header-logo { font-size: 1.5rem; font-weight: bold; color: #333; margin-right: 30px; }
+        .header-logo { font-size: 1.5rem; font-weight: bold; color: #333; margin-right: 30px; cursor: pointer; } /* ✅ Cursor pointer */
+        .header-logo:hover { color: #007bff; } /* ✅ Efecto hover */
 
         /* Pestañas (Cabecera) */
         .dashboard-tabs { display: flex; height: 100%; }
@@ -54,10 +51,38 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
         .user-profile span { font-size: 0.9rem; color: #333; }
         .user-profile i { margin-right: 5px; }
 
+        /* ✅ NUEVO: Barra de Botón "Atrás" */
+        .back-button-bar {
+            background-color: #fff;
+            padding: 10px 30px;
+            border-bottom: 1px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        }
+        #btn-back-to-list {
+            background: none;
+            border: 1px solid #6c757d; /* Gris */
+            color: #6c757d;
+            padding: 5px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s ease;
+        }
+        #btn-back-to-list:hover {
+            background-color: #f8f9fa;
+            color: #333;
+            border-color: #5a6268;
+        }
+        /* --- FIN ESTILOS BOTÓN ATRÁS --- */
+
         /* Contenido Principal */
         .dashboard-content { margin: 20px; padding: 0; width: auto; flex-grow: 1; }
 
-        /* Estilos Form Builder */
+        /* (Estilos Form Builder omitidos por brevedad) */
         .form-builder-container { max-width: 800px; margin: 0 auto; }
         .survey-header-editor, .pregunta-block { background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 25px; margin-bottom: 20px; border-left: 8px solid #e3eef6ff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .pregunta-block:focus-within { border-left-color: #007bff; }
@@ -81,54 +106,19 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
         .btn-add-pregunta { display: block; margin: 20px auto; padding: 10px 20px; background: #fff; border: 1px dashed #ccc; border-radius: 5px; cursor: pointer; color: #555; transition: all 0.2s ease; display: flex; align-items: center; gap: 8px; justify-content: center; }
         .btn-add-pregunta:hover { background: #f9f9f9; border-style: solid; color: #007bff; }
         
-        /* Estilos Lista Encuestas */
+        /* (Estilos Lista Encuestas omitidos por brevedad) */
         .encuesta-item { display: flex; flex-direction: column; justify-content: space-between; padding: 15px; background: #fff; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .encuesta-info { margin-bottom: 10px; } .encuesta-info h3 { margin: 0; font-size: 1.2rem; } .encuesta-info div { display: flex; align-items: center; gap: 10px; margin-top: 5px; flex-wrap: wrap; } .encuesta-info span { font-size: 0.85rem; padding: 3px 8px; border-radius: 12px; color: #fff; } .encuesta-info small { font-size: 0.85rem; color: #666;} .encuesta-info .estado-publicada { background-color: #28a745; } .encuesta-info .estado-cerrada { background-color: #dc3545; } .encuesta-info .estado-borrador { background-color: #6c757d; } .encuesta-info .estado-archivada { background-color: #343a40; } .encuesta-acciones { display: flex; flex-wrap: wrap; gap: 5px; } .encuesta-acciones button, .encuesta-acciones a { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; color: white; font-size: 0.9rem; flex-grow: 1; text-align: center; display: flex; align-items: center; justify-content: center; gap: 5px; } .btn-resultados { background-color: #17a2b8; } .btn-cerrar { background-color: #ffc107; color: #333; } .btn-eliminar { background-color: #dc3545; } .btn-editar { background-color: #ffc107; color: #333; } .btn-publish-lista { background-color: #28a745; color: white;}
         #loading { text-align: center; padding: 40px; font-size: 1.2em; color: #666; }
         
-        /* Estilos Vista Resultados */
+        /* (Estilos Vista Resultados omitidos por brevedad) */
         .resultados-container { background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .resultados-header h2 { margin-bottom: 5px; }
-        .resultados-header p { color: #666; margin-bottom: 20px; }
-        .pie-chart-container { max-width: 300px; margin: 20px auto; }
-        .pregunta-resultados { border-top: 1px solid #eee; padding-top: 20px; margin-top: 20px; }
-        .pregunta-resultados h4 { font-size: 1.1rem; margin-bottom: 10px; }
-        .opcion-resultado { margin-bottom: 8px; } .opcion-resultado .texto { font-weight: 500; } .opcion-resultado .conteo { color: #007bff; font-weight: bold; } .participante-lista { font-size: 0.9em; color: #777; margin-left: 15px; }
-        .respuesta-abierta { background: #f8f9fa; border-left: 3px solid #ccc; padding: 8px 12px; margin-bottom: 8px; font-style: italic; }
-        .respuesta-abierta span { font-weight: bold; color: #555; }
+        .resultados-header h2 { margin-bottom: 5px; } .resultados-header p { color: #666; margin-bottom: 20px; } .pie-chart-container { max-width: 300px; margin: 20px auto; } .pregunta-resultados { border-top: 1px solid #eee; padding-top: 20px; margin-top: 20px; } .pregunta-resultados h4 { font-size: 1.1rem; margin-bottom: 10px; } .opcion-resultado { margin-bottom: 8px; } .opcion-resultado .texto { font-weight: 500; } .opcion-resultado .conteo { color: #007bff; font-weight: bold; } .participante-lista { font-size: 0.9em; color: #777; margin-left: 15px; } .respuesta-abierta { background: #f8f9fa; border-left: 3px solid #ccc; padding: 8px 12px; margin-bottom: 8px; font-style: italic; } .respuesta-abierta span { font-weight: bold; color: #555; }
+        .tabs-container-resultados { width: 100%; margin-top: 20px; } .tab-buttons { display: flex; border-bottom: 2px solid #eee; } .tab-button-res { padding: 10px 20px; border: none; background: none; cursor: pointer; font-size: 1.1rem; color: #888; font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -2px; display: flex; align-items: center; gap: 8px; } .tab-button-res:hover { color: #333; } .tab-button-res.active { color: #007bff; border-bottom-color: #007bff; } .tab-content-res { padding-top: 20px; } .tab-pane-res { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; } .tab-pane-res.active { display: block; opacity: 1; } .bar-chart-container { position: relative; width: 100%; max-width: 600px; margin: 15px 0; height: 250px; } .pregunta-resultado-grafico, .pregunta-resultado-abierta { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0; } .pregunta-resultado-abierta h4 { font-size: 1.1rem; margin-bottom: 10px; }
+        .lista-participantes { list-style: none; padding: 0; margin: 0; } .lista-participantes li { border-bottom: 1px solid #f0f0f0; } .participante-link { display: block; padding: 12px 10px; text-decoration: none; color: #333; transition: background-color 0.2s ease; border-radius: 4px; } .participante-link:hover { background-color: #f8f9fa; color: #007bff; } .participante-link i { margin-right: 10px; color: #6c757d; }
+        .swal-form-respuestas { text-align: left; max-height: 50vh; overflow-y: auto; padding: 5px 15px; margin-top: -10px; } .swal-pregunta-item { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; } .swal-pregunta-item:last-child { border-bottom: none; margin-bottom: 0; } .swal-pregunta-item h4 { font-size: 1.1em; color: #333; margin-bottom: 10px; } .swal-opcion-item { font-size: 1em; color: #888; margin-left: 10px; padding: 5px; display: flex; align-items: center; gap: 10px; } .swal-opcion-item.selected { font-weight: bold; color: #007bff; background-color: #e3f2fd; border-radius: 4px; } .swal-opcion-item i { color: #007bff; font-size: 0.9em; } .swal-opcion-item i.fa-circle, .swal-opcion-item i.fa-square { color: #ccc; } .swal-respuesta-abierta-display { font-style: italic; color: #333; background: #f8f9fa; border: 1px solid #eee; border-radius: 4px; padding: 10px; margin-top: 5px; width: 95%; }
 
-        /* Estilos para Pestañas de Resultados */
-        .tabs-container-resultados { width: 100%; margin-top: 20px; }
-        .tab-buttons { display: flex; border-bottom: 2px solid #eee; }
-        .tab-button-res { padding: 10px 20px; border: none; background: none; cursor: pointer; font-size: 1.1rem; color: #888; font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -2px; display: flex; align-items: center; gap: 8px; }
-        .tab-button-res:hover { color: #333; }
-        .tab-button-res.active { color: #007bff; border-bottom-color: #007bff; }
-        .tab-content-res { padding-top: 20px; }
-        .tab-pane-res { display: none; opacity: 0; transition: opacity 0.3s ease-in-out; }
-        .tab-pane-res.active { display: block; opacity: 1; }
-        .bar-chart-container { position: relative; width: 100%; max-width: 600px; margin: 15px 0; height: 250px; }
-        .pregunta-resultado-grafico, .pregunta-resultado-abierta { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0; }
-        .pregunta-resultado-abierta h4 { font-size: 1.1rem; margin-bottom: 10px; }
-
-        /* Estilos Lista Participantes */
-        .lista-participantes { list-style: none; padding: 0; margin: 0; }
-        .lista-participantes li { border-bottom: 1px solid #f0f0f0; }
-        .participante-link { display: block; padding: 12px 10px; text-decoration: none; color: #333; transition: background-color 0.2s ease; border-radius: 4px; }
-        .participante-link:hover { background-color: #f8f9fa; color: #007bff; }
-        .participante-link i { margin-right: 10px; color: #6c757d; }
-        
-        /* Estilos Modal Respuestas Alumno */
-        .swal-form-respuestas { text-align: left; max-height: 50vh; overflow-y: auto; padding: 5px 15px; margin-top: -10px; }
-        .swal-pregunta-item { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
-        .swal-pregunta-item:last-child { border-bottom: none; margin-bottom: 0; }
-        .swal-pregunta-item h4 { font-size: 1.1em; color: #333; margin-bottom: 10px; }
-        .swal-opcion-item { font-size: 1em; color: #888; margin-left: 10px; padding: 5px; display: flex; align-items: center; gap: 10px; }
-        .swal-opcion-item.selected { font-weight: bold; color: #007bff; background-color: #e3f2fd; border-radius: 4px; }
-        .swal-opcion-item i { color: #007bff; font-size: 0.9em; }
-        .swal-opcion-item i.fa-circle, .swal-opcion-item i.fa-square { color: #ccc; }
-        .swal-respuesta-abierta { font-style: italic; color: #333; background: #f8f9fa; border: 1px solid #eee; border-radius: 4px; padding: 10px; margin-top: 5px; width: 95%; }
-
-        /* Media Queries */
+        /* (Media Queries omitidas por brevedad) */
         @media (min-width: 768px) { .encuesta-item { flex-direction: row; align-items: center; } .encuesta-info { margin-bottom: 0; } .encuesta-acciones { flex-grow: 0; flex-wrap: nowrap; } }
         @media (max-width: 768px) { .dashboard-header { flex-direction: column; padding: 10px; min-height: auto; align-items: stretch;} .header-left-group { width: 100%; justify-content: space-between; margin-bottom: 10px;} .header-right-group { width: 100%; justify-content: space-between; } .dashboard-tabs { justify-content: center; } .header-logo { margin-right: 0; } }
         @media (max-width: 480px) { .dashboard-tabs { flex-wrap: wrap; justify-content: center;} .tab-link { font-size: 0.9rem; padding: 10px 8px; } .header-logo { font-size: 1.2rem; } .btn-logout, .user-profile span { font-size: 0.8rem;} .btn-publish { font-size: 0.8rem; padding: 6px 10px;} .encuesta-acciones button, .encuesta-acciones a { font-size: 0.8rem; padding: 6px 8px; } .tab-button-res { font-size: 0.95rem; padding: 10px 15px; } }
@@ -151,6 +141,12 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                 <div class="user-profile"><i class="fa-solid fa-user"></i> <span><?php echo $nombre; ?></span></div>
             </div>
         </header>
+
+        <div class="back-button-bar" id="back-button-container" style="display: none;">
+            <button id="btn-back-to-list">
+                <i class="fa-solid fa-arrow-left"></i> Volver a Mis Encuestas
+            </button>
+        </div>
 
         <main class="dashboard-content" id="dashboard-content-container">
             </main>
@@ -175,6 +171,7 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
         function cargarMisEncuestas() {
             activarTab('#btn-tab-mis-encuestas');
             $('#publish-button-placeholder').empty();
+            $('#back-button-container').hide(); // ✅ Ocultar botón "Atrás"
             const container = $('#dashboard-content-container');
             container.html('<div id="loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando tus encuestas...</div>');
 
@@ -205,6 +202,7 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
         // 2. Cargar el formulario para "Crear Nueva Encuesta"
         function cargarFormCrear() {
             activarTab('#btn-tab-crear');
+            $('#back-button-container').show(); // ✅ Mostrar botón "Atrás"
             $('#publish-button-placeholder').html(`<button type="submit" form="form-crear-encuesta" class="btn-publish" style="background-color: #007bff; color: white;"><i class="fa-solid fa-save"></i> Guardar Encuesta</button>`);
             const container = $('#dashboard-content-container');
             const formHtml = `
@@ -225,9 +223,10 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
             agregarPregunta();
         }
 
-        // 3. Cargar la vista de "Resultados" (ACTUALIZADA CON PESTAÑAS)
+        // 3. Cargar la vista de "Resultados"
         function cargarResultados(idEncuesta) {
             activarTab(null);
+            $('#back-button-container').show(); // ✅ Mostrar botón "Atrás"
             $('#publish-button-placeholder').empty();
             const container = $('#dashboard-content-container');
             container.html('<div id="loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando resultados...</div>');
@@ -239,7 +238,6 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                         const r = response.resultados; let html = `<div class="resultados-container"><div class="resultados-header"><h2>Resultados: ${r.titulo}</h2><p>Visibilidad: ${r.visibilidad} | Estado: ${r.estado}</p></div>`;
                         const totalRespuestas = r.resumen_participacion.respuestas_anonimas + r.resumen_participacion.respuestas_identificadas;
                         
-                        // HTML PARA PESTAÑAS
                         html += `
                             <div class="tabs-container-resultados">
                                 <div class="tab-buttons">
@@ -267,12 +265,10 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                         
                         html += `</div>`; container.html(html);
 
-                        // 1. Inicializar Gráfico de Pastel (Pestaña 1)
                         if (totalRespuestas > 0) {
                             try { const ctx = document.getElementById('pieChartParticipacion').getContext('2d'); new Chart(ctx, { type: 'pie', data: { labels: ['Identificadas', 'Anónimas'], datasets: [{ label: '# de Respuestas', data: [r.resumen_participacion.respuestas_identificadas, r.resumen_participacion.respuestas_anonimas], backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(201, 203, 207, 0.7)'], borderColor: ['rgba(75, 192, 192, 1)', 'rgba(201, 203, 207, 1)'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } } } }); } catch (e) { console.error("Error al crear el gráfico de pastel:", e); }
                         }
 
-                        // 2. Generar Gráficos de Barras y Respuestas Abiertas (Pestaña 2)
                         const preguntasGraficosContainer = $('#preguntas-graficos-container');
                         if (totalRespuestas > 0 && r.preguntas && r.preguntas.length > 0) {
                             let preguntasContablesEncontradas = false;
@@ -296,7 +292,6 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                         } else if (totalRespuestas > 0) { preguntasGraficosContainer.html('<div style="text-align: center; padding: 20px;"><p>No se encontraron preguntas en esta encuesta.</p></div>'); }
                         else { preguntasGraficosContainer.html('<div style="text-align: center; padding: 30px; border: 1px dashed #ccc; border-radius: 8px; margin-top: 20px;"><i class="fa-solid fa-inbox fa-2x" style="color: #ccc; margin-bottom: 15px;"></i><p><strong>Aún no hay respuestas</strong> para esta encuesta.</p></div>'); }
 
-                        // 3. Llenar Pestaña de Participantes
                         if (r.visibilidad === 'identificada' && r.participantes_identificados && r.participantes_identificados.length > 0) {
                             $('.tab-button-res[data-tab="participantes"]').show();
                             const participantesContainer = $('#participantes-lista-container'); let listaHtml = '<ul class="lista-participantes">';
@@ -315,6 +310,7 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
          // 4. Cargar Formulario para EDITAR Borrador
         function cargarFormEditar(idEncuesta) {
             activarTab(null);
+            $('#back-button-container').show(); // ✅ Mostrar botón "Atrás"
             const container = $('#dashboard-content-container');
             container.html('<div id="loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando datos del borrador...</div>');
 
@@ -401,6 +397,7 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
 
             // Pop-up contraseña temporal
             <?php if ($esTemporal): ?>
+            // (Código pop-up sin cambios)
             const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
             Swal.fire({ title: 'Cambio de Contraseña Requerido', text: 'Por seguridad, debes establecer una nueva contraseña.', icon: 'warning', allowOutsideClick: false, allowEscapeKey: false, html: `<div style="text-align: left; margin-top: 15px;"><label for="swal-pass1" class="swal2-label">Nueva Contraseña</label><input type="password" id="swal-pass1" class="swal2-input" placeholder="Nueva contraseña"><label for="swal-pass2" class="swal2-label" style="margin-top: 10px;">Confirmar Contraseña</label><input type="password" id="swal-pass2" class="swal2-input" placeholder="Confirmar contraseña"><div id="swal-hint" style="font-size: 0.8em; color: #666; margin-top: 10px;">*Mínimo 8 carac, 1 especial (ej. !@#$) y terminar con AL</div></div>`, confirmButtonText: 'Guardar Contraseña', showLoaderOnConfirm: true,
                 preConfirm: () => { const p1 = $('#swal-pass1').val(); const p2 = $('#swal-pass2').val(); if (!p1 || !p2) { Swal.showValidationMessage('Campos obligatorios.'); return false; } if (p1 !== p2) { Swal.showValidationMessage('Contraseñas no coinciden.'); return false; } if (p1.length < 8 || !p1.toLowerCase().endsWith('al') || !specialCharRegex.test(p1)) { Swal.showValidationMessage('Contraseña no cumple requisitos.'); return false; } return { nueva_contrasena: p1, confirmar_contrasena: p2 }; }
@@ -410,6 +407,19 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
             // --- Navegación por Pestañas (Cabecera) ---
             $('#btn-tab-mis-encuestas').on('click', (e) => { e.preventDefault(); cargarMisEncuestas(); });
             $('#btn-tab-crear').on('click', (e) => { e.preventDefault(); cargarFormCrear(); });
+            
+            // --- ✅ NUEVO: Clic en "Mi Panel" (Logo) ---
+            $('.header-logo').on('click', function(e) {
+                e.preventDefault();
+                cargarMisEncuestas(); // Siempre vuelve a la lista principal
+            });
+
+            // --- ✅ NUEVO: Clic en Botón "Atrás" ---
+            $('#back-button-container').on('click', '#btn-back-to-list', function(e) {
+                e.preventDefault();
+                cargarMisEncuestas(); // Siempre vuelve a la lista principal
+            });
+
 
             // --- Eventos del Form Builder ---
             $('#dashboard-content-container').on('click', '#btn-add-pregunta', agregarPregunta);
@@ -439,7 +449,6 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                 const idEncuesta = $(this).data('id-encuesta');
                 const idAlumno = $(this).data('id-alumno');
                 const nombreAlumno = $(this).data('nombre-alumno');
-                // Llamar a la función auxiliar para mostrar el modal
                 mostrarRespuestasAlumno(idEncuesta, idAlumno, nombreAlumno);
             });
 
@@ -474,8 +483,8 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                  Swal.fire('Pendiente', 'La API para actualizar el borrador aún no está implementada.', 'info').then(() => { updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); });
                  /* $.ajax({ url: '../api/actualizarEncuestaBorrador.php', // ¡¡API PENDIENTE!! method: 'POST', contentType: 'application/json', data: JSON.stringify(datosActualizados), success: function(res) { if (res.success) { Swal.fire('¡Actualizado!', 'Borrador guardado.', 'success'); cargarMisEncuestas(); } else { Swal.fire('Error', res.mensaje, 'error'); updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); } }, error: function() { Swal.fire('Error', 'Conexión fallida.', 'error'); updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); } }); */
             });
-            
-            // --- ✅ Función Auxiliar para Modal de Respuestas de Alumno ---
+
+            // --- Función Auxiliar para Modal de Respuestas de Alumno ---
             function mostrarRespuestasAlumno(idEncuesta, idAlumno, nombreAlumno) {
                 Swal.fire({
                     title: `Cargando respuestas de ${nombreAlumno}...`,
@@ -504,7 +513,7 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                                         // Escapar HTML en la respuesta del usuario para seguridad
                                         texto = $('<div>').text(respuesta.texto_respuesta_abierta).html();
                                     }
-                                    html += `<div class="swal-respuesta-abierta">${texto}</div>`;
+                                    html += `<div class="swal-respuesta-abierta-display">${texto}</div>`;
                                 } 
                                 // Tipos con opciones
                                 else if (pregunta.opciones && pregunta.opciones.length > 0) {
