@@ -227,27 +227,57 @@ $modo_respuesta = isset($_GET['modo']) && in_array($_GET['modo'], ['identificado
 
             // Envío real
             $.ajax({
-                url: "../api/enviarRespuesta.php", method: "POST", contentType: "application/json", data: JSON.stringify(payload),
+                url: "../api/enviarRespuesta.php",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify(payload),
                 success: (r) => {
                     if (r.success) {
-                        // --- ✅ ACTUALIZADO: INCREMENTAR contador en localStorage si fue anónimo ---
-                        if (modoRespuesta === 'anonimo') {
-                            try {
-                                let respondidasAnonCounts = JSON.parse(localStorage.getItem('encuestasAnonCounts') || '{}');
-                                let currentCount = respondidasAnonCounts[idEncuesta] || 0;
-                                respondidasAnonCounts[idEncuesta] = currentCount + 1;
-                                localStorage.setItem('encuestasAnonCounts', JSON.stringify(respondidasAnonCounts));
-                                console.log("LocalStorage: Incrementado contador anónimo para encuesta ID", idEncuesta, ". Nuevo conteo:", currentCount + 1);
-                            } catch (e) { console.error("Error al guardar contador en localStorage:", e); }
+                        // --- ✅ LÓGICA DE GUARDADO LOCAL ---
+                        // No importa el modo, guardamos que ya respondió.
+                        try {
+                            // Usamos una clave que guarda el MODO
+                            let respondidasLocal = JSON.parse(localStorage.getItem('encuestasRespondidasLocalmente') || '{}');
+                            // Guardamos CÓMO respondió ('identificado' o 'anonimo')
+                            respondidasLocal[idEncuesta] = modoRespuesta; 
+                            localStorage.setItem('encuestasRespondidasLocalmente', JSON.stringify(respondidasLocal));
+                            console.log(`LocalStorage: Marcada encuesta ${idEncuesta} como respondida (${modoRespuesta})`);
+                        } catch (e) {
+                            console.error("Error al guardar en localStorage:", e);
                         }
-                        // --- FIN ACTUALIZACIÓN ---
+                        // --- FIN LÓGICA GUARDADO ---
 
-                        Swal.fire({ icon: 'success', title: '¡Respuestas enviadas!', text: 'Gracias por participar.', showCancelButton: true, confirmButtonText: 'Ver mis respuestas', cancelButtonText: 'Volver al inicio', confirmButtonColor: '#17a2b8', cancelButtonColor: '#6c757d',
-                            preConfirm: () => { if (modoRespuesta === 'anonimo') { Swal.showValidationMessage('No puedes ver tus respuestas si respondiste de forma anónima.'); return false; } return true; }
-                        }).then((result) => { if (result.isConfirmed) { window.location.href = `dashboard_alumno.php?verRespuestas=${idEncuesta}`; } else { window.location.href = 'dashboard_alumno.php'; } });
-                    } else { Swal.fire("Error", r.mensaje || "No se pudo enviar la encuesta.", "error"); $submitBtn.prop('disabled', false).text('Enviar respuestas'); }
+                        // Obtener el título de la encuesta desde el H1
+                        const tituloEncuesta = $('#encuesta-titulo').text() || "Encuesta Respondida";
+
+                        Swal.fire({
+                            icon: 'success', title: '¡Respuestas enviadas!', text: 'Gracias por participar.',
+                            showCancelButton: true, confirmButtonText: 'Ver mis respuestas', cancelButtonText: 'Volver al inicio',
+                            confirmButtonColor: '#17a2b8', cancelButtonColor: '#6c757d',
+                            preConfirm: () => { 
+                                if (modoRespuesta === 'anonimo') { 
+                                    Swal.showValidationMessage('No puedes ver tus respuestas si respondiste de forma anónima.'); 
+                                    return false; // Evita que se cierre al confirmar
+                                }
+                                return true; // Permite continuar si es identificado
+                            }
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                // ✅ Redirigir pasando el título para el modal
+                                window.location.href = `dashboard_alumno.php?verRespuestas=${idEncuesta}&titulo=${encodeURIComponent(tituloEncuesta)}`;
+                            } else {
+                                window.location.href = 'dashboard_alumno.php';
+                            }
+                        });
+                    } else {
+                        Swal.fire("Error", r.mensaje || "No se pudo enviar la encuesta.", "error");
+                        $submitBtn.prop('disabled', false).text('Enviar respuestas');
+                    }
                 },
-                error: () => { Swal.fire("Error", "No se pudo conectar con el servidor.", "error"); $submitBtn.prop('disabled', false).text('Enviar respuestas'); }
+                error: () => {
+                    Swal.fire("Error", "No se pudo conectar con el servidor.", "error");
+                    $submitBtn.prop('disabled', false).text('Enviar respuestas');
+                }
             });
         });
     });

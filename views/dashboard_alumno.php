@@ -222,28 +222,42 @@ $(function(){
   // Renderizar tarjetas de encuestas
   function renderEncuestas(list){
     const $grid=$("#encuestas-grid").empty();
-    const respondidasAnonCounts = JSON.parse(localStorage.getItem('encuestasAnonCounts') || '{}');
+    // ✅ Leer la nueva clave de localStorage
+    const respondidasLocal = JSON.parse(localStorage.getItem('encuestasRespondidasLocalmente') || '{}');
+    console.log("LocalStorage: Leyendo modos de respuesta:", respondidasLocal); // Para depurar
+
+    if (list.length === 0 && $("#filtroBusqueda").val()) {
+        $grid.html('<p class="grid-vacia">No se encontraron encuestas con los filtros aplicados.</p>'); return;
+    } else if (list.length === 0) {
+         $grid.html('<p class="grid-vacia">No hay encuestas disponibles en este momento.</p>'); return;
+    }
 
     list.forEach(e=>{
       const id=e.id_encuesta;
       const vis=e.visibilidad==="identificada"?"Identificada":"Anónima";
       const icon=vis==="Identificada"?'<i class="fa-solid fa-file-signature"></i>':'<i class="fa-solid fa-user-secret"></i>';
-      const titulo = $('<div>').text(e.titulo).html(); // Escapar HTML
-      const descripcion = $('<div>').text(e.descripcion || 'Sin descripción').html(); // Escapar HTML
-      const encuestador = $('<div>').text(e.encuestador_nombre || 'Encuestador').html(); // Escapar HTML
+      const titulo = $('<div>').text(e.titulo).html();
+      const descripcion = $('<div>').text(e.descripcion || 'Sin descripción').html();
+      const encuestador = $('<div>').text(e.encuestador_nombre || 'Encuestador').html();
       const fechaFormateada = new Date(e.fecha_creacion).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 
       let botonHtml = '';
-      const respondidaIdentificado = e.ya_respondida;
-      const anonCountLocal = respondidasAnonCounts[id] || 0;
+      const respondidaIdentificado = e.ya_respondida; // Viene del backend (true/false)
+      const modoRespuestaLocal = respondidasLocal[id]; // Viene de localStorage ('identificado' o 'anonimo')
 
+      // ✅ Lógica de botón simplificada
       if (respondidaIdentificado) {
+          // 1. Prioridad: La BD dice que respondió (identificado)
           botonHtml = `<button class="btn-ver" data-id="${id}" data-modo="identificado" data-titulo="${titulo}">Ver mis respuestas</button>`;
-      } else if (anonCountLocal > 0) {
-           botonHtml = `<button class="btn-ver" data-id="${id}" data-modo="anonimo" data-titulo="${titulo}">Ver mis respuestas</button>`;
+      } else if (modoRespuestaLocal) {
+           // 2. localStorage dice que respondió (probablemente anónimo)
+           // Usamos el modo que guardamos en localStorage
+           botonHtml = `<button class="btn-ver" data-id="${id}" data-modo="${modoRespuestaLocal}" data-titulo="${titulo}">Ver mis respuestas</button>`;
       } else {
+          // 3. No ha respondido
           botonHtml = `<button class="btn-encuesta" data-id="${id}">Responder encuesta</button>`;
       }
+      // --- Fin Lógica Botón ---
 
       const card=`
       <article class="enc-card" data-id="${id}">
@@ -257,28 +271,25 @@ $(function(){
   }
   
   // Ir a responder encuesta
-  $(document).on("click",".btn-encuesta",function(){
+ $(document).on("click",".btn-encuesta",function(){
     const idEncuesta=$(this).data("id");
-    let anonCount = 0;
-    try { const respondidasAnonCounts = JSON.parse(localStorage.getItem('encuestasAnonCounts') || '{}'); anonCount = respondidasAnonCounts[idEncuesta] || 0; } catch(e) { console.error("Error leyendo contador:", e); }
+    // Obtener el título de la tarjeta para pasarlo
+    const titulo = $(this).closest('.enc-card').find('h3').text();
 
     let swalOptions = {
-        title: '¿Cómo deseas responder?', text: 'Puedes responder con tu nombre o de forma anónima (si la encuesta lo permite).',
+        title: '¿Cómo deseas responder?',
+        text: 'Puedes responder con tu nombre o de forma anónima (si la encuesta lo permite).',
         icon: 'question', showCancelButton: true, confirmButtonText: 'Identificado',
         cancelButtonText: 'Anónimo', reverseButtons: true
     };
-    if (anonCount >= 2) { // Límite de 2
-        swalOptions.cancelButtonText = 'Límite Anónimo Alcanzado';
-        swalOptions.text += '\n\n(Has alcanzado el límite de 2 respuestas anónimas para esta encuesta desde este navegador).';
-    }
+    
+    // Ya no hay lógica de contador aquí
 
     Swal.fire(swalOptions).then((result) => {
-        if (!result.isConfirmed && anonCount >= 2) {
-            Toast.fire({icon: 'warning', title: 'Límite de respuestas anónimas alcanzado.'});
-            return;
-        }
+        // No hay chequeo de límite
         let modo = result.isConfirmed ? 'identificado' : 'anonimo';
-        window.location.href = `responder_encuesta.php?id=${idEncuesta}&modo=${modo}`;
+        // ✅ Pasar el título a la siguiente página
+        window.location.href = `responder_encuesta.php?id=${idEncuesta}&modo=${modo}&titulo=${encodeURIComponent(titulo)}`;
     });
   });
 
@@ -471,22 +482,17 @@ $(function(){
   /* === Lógica de Carga Inicial === */
   const urlParams = new URLSearchParams(window.location.search);
   const idVerRespuestas = urlParams.get('verRespuestas');
-  
+  // ✅ Leer el título desde el parámetro de la URL
+  const tituloEncuestaResp = urlParams.get('titulo');
+
   if (idVerRespuestas && !isNaN(idVerRespuestas)) {
+      // Si el parámetro existe, lanzar el modal
       setTimeout(() => {
-          // Intentar encontrar el título de la encuesta desde los datos ya cargados (si existen)
-          // o simplemente usar un genérico.
-          // Para que esto funcione bien, la redirección desde 'responder_encuesta' DEBERÍA pasar el título.
-          // Por ahora, lo buscamos en el historial o en la lista de encuestas
-          let titulo = "Encuesta Respondida";
-          const encuestaEnHistorial = historialEncuestas.find(e => e.id_encuesta == idVerRespuestas);
-          const encuestaEnLista = todasLasEncuestas.find(e => e.id_encuesta == idVerRespuestas);
-          if (encuestaEnHistorial) { titulo = encuestaEnHistorial.titulo; }
-          else if (encuestaEnLista) { titulo = encuestaEnLista.titulo; }
-          
+          // Usar el título de la URL (decodificado) o un genérico
+          const titulo = tituloEncuestaResp ? decodeURIComponent(tituloEncuestaResp) : "Encuesta Respondida";
           mostrarMisRespuestas(parseInt(idVerRespuestas), titulo);
-      }, 500);
-      history.replaceState(null, '', window.location.pathname);
+      }, 500); // 500ms de espera
+      history.replaceState(null, '', window.location.pathname); // Limpiar URL
   } else {
       // Cargar la vista de encuestas por defecto
       $("#btn-encuestas").trigger('click');
