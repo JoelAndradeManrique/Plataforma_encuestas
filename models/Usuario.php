@@ -293,6 +293,44 @@ class Usuario {
         $stmt->bind_param("i", $id_usuario);
         return $stmt->execute();
     }
+
+   /**
+     * Crea un nuevo usuario (ADMINISTRADOR) en la base de datos.
+     * @param array $datos Array asociativo con los datos del admin.
+     * @return bool True si fue exitoso, false si no.
+     */
+    public function createAdmin($datos) {
+        
+        // --- ✅ CORRECCIÓN CLAVE ---
+        // Usamos el rol 'administrator' (largo) como está en tu ENUM
+        $query = "INSERT INTO Usuarios (nombre, apellido, email, contrasena_hash, rol, password_temporal) 
+                  VALUES (?, ?, ?, ?, 'administrator', FALSE)";
+        // --- FIN CORRECCIÓN ---
+        
+        $stmt = $this->conexion->prepare($query);
+
+        if (!$stmt) {
+             error_log("Error al preparar la consulta createAdmin: " . $this->conexion->error);
+             return false;
+        }
+
+        // Encriptar contraseña
+        $contrasena_hash = password_hash($datos['contrasena'], PASSWORD_DEFAULT);
+
+        $stmt->bind_param("ssss",
+            $datos['nombre'],
+            $datos['apellido'],
+            $datos['email'],
+            $contrasena_hash
+        );
+
+        $success = $stmt->execute();
+        if (!$success) {
+             error_log("Error al ejecutar createAdmin: " . $stmt->error);
+        }
+        $stmt->close();
+        return $success;
+    }
 }
 
 ?>

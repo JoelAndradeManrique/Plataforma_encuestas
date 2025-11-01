@@ -112,10 +112,11 @@
                             return;
                         }
 
-                        // --- ✅ LÓGICA DE REDIRECCIÓN ACTUALIZADA ---
+                        // --- ✅ LÓGICA DE REDIRECCIÓN CORREGIDA ---
                         let destino = ''; 
                         
-                        if (response.usuario.rol === 'admin') {
+                        // ✅ CORREGIDO: Comparar con 'administrator'
+                        if (response.usuario.rol === 'administrator') { 
                             destino = 'dashboard_admin.php';
                         } else if (response.usuario.rol === 'encuestador') {
                             destino = 'dashboard_general.php'; // Encuestador SÍ va aquí
@@ -124,6 +125,7 @@
                         } else {
                             destino = 'login.php'; // Seguridad
                         }
+                        // --- FIN CORRECCIÓN ---
                         
                         Swal.fire({
                             icon: 'success',

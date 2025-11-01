@@ -525,5 +525,27 @@ class UsuarioController {
             return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al actualizar la contraseña en la base de datos.'];
         }
     }
+
+   /**
+     * Procesa el registro de un nuevo admin (SOLO PARA API TEMPORAL).
+     * @param array $datos Datos recibidos (nombre, apellido, email, contrasena).
+     * @return array Respuesta con estado y mensaje.
+     */
+    public function registrarAdmin($datos) {
+        // (Validaciones de campos, email, contraseña...)
+        // ...
+        
+        // Verificar si el email ya existe
+        if ($this->modeloUsuario->findByEmail($datos['email'])) {
+            return ['estado' => 409, 'success' => false, 'mensaje' => 'Este correo electrónico ya está registrado.'];
+        }
+
+        // Si todo es válido, intentar crear el admin
+        if ($this->modeloUsuario->createAdmin($datos)) { // Llama a la función del modelo
+            return ['estado' => 201, 'success' => true, 'mensaje' => '¡Administrador creado con éxito!'];
+        } else {
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al registrar el admin.', 'error_db' => $this->conexion->error];
+        }
+    }
 }
 ?>
