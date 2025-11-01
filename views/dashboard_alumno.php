@@ -120,118 +120,68 @@ $iniciales = obtener_iniciales($nombre, $apellido); $nombreCompleto = trim($nomb
 
 <script>
 $(function(){
-  // Variables globales para almacenar datos
+  // Variables globales
   let todasLasEncuestas = [];
   let historialEncuestas = [];
 
-  // Configuración global de Toasts
-  const Toast = Swal.mixin({
-      toast: true, position: 'top-end', showConfirmButton: false, timer: 2600, timerProgressBar: true,
-  });
+  // Configuración Toasts
+  const Toast = Swal.mixin({ toast:true, position:"top-end", showConfirmButton:false, timer:2600, timerProgressBar:true });
   const toastOk = (m)=>Toast.fire({icon:"success",title:m});
   const toastError = (m)=>Toast.fire({icon:"error",title:m});
 
-  /* === Menú perfil === */
-  $("#perfil-circulo").click(e=>{ e.stopPropagation(); $("#perfil-menu").toggleClass("oculto"); });
-  $(document).click(()=>$("#perfil-menu").addClass("oculto"));
-
   /* === Navegación === */
   function navegarA(seccionId) {
-    if (seccionId !== "#encuestas-section" && seccionId !== "#historial-section") {
-        $(".nav-btn").removeClass("nav-btn--active");
-    }
+    if (seccionId !== "#encuestas-section" && seccionId !== "#historial-section") { $(".nav-btn").removeClass("nav-btn--active"); }
     $("section").addClass("oculto");
     $(seccionId).removeClass("oculto");
   }
-  
   $("#home-link").click(()=>navegarA("#home-section"));
   $("#mi-perfil").click(e=>{ e.preventDefault(); navegarA("#perfil-section"); $("#perfil-menu").addClass("oculto"); });
   $("#btn-regresar").click(()=>navegarA("#home-section"));
-  
-  $("#btn-encuestas").click(function(){
-    $(".nav-btn").removeClass("nav-btn--active");
-    $(this).addClass("nav-btn--active");
-    navegarA("#encuestas-section");
-    cargarEncuestas();
-  });
+  $("#btn-encuestas").click(function(){ $(this).addClass("nav-btn--active"); navegarA("#encuestas-section"); cargarEncuestas(); });
+  $("#btn-historial").click(function(){ $(this).addClass("nav-btn--active"); navegarA("#historial-section"); cargarHistorial(); });
+  $("#perfil-circulo").click(e=>{ e.stopPropagation(); $("#perfil-menu").toggleClass("oculto"); });
+  $(document).click(()=>$("#perfil-menu").addClass("oculto"));
 
-  $("#btn-historial").click(function(){
-    $(".nav-btn").removeClass("nav-btn--active");
-    $(this).addClass("nav-btn--active");
-    navegarA("#historial-section");
-    cargarHistorial();
-  });
-
-  /* === Encuestas - Llamada a API === */
+  /* === Encuestas - Cargar y Filtrar === */
   function cargarEncuestas(forceReload = false){
       const $grid = $("#encuestas-grid");
       const $loading = $("#loading-encuestas");
-      if (todasLasEncuestas.length > 0 && !forceReload) {
-          filtrarYRenderizarEncuestas();
-          return;
-      }
+      if (todasLasEncuestas.length > 0 && !forceReload) { filtrarYRenderizarEncuestas(); return; }
       $grid.empty(); $loading.show();
       $.ajax({
-          url: '../api/obtenerEncuestasPublicas.php',
-          method: 'GET', dataType: 'json',
+          url: '../api/obtenerEncuestasPublicas.php', method: 'GET', dataType: 'json',
           success: function(response) {
               $loading.hide();
-              if (response.success && response.encuestas) {
-                  todasLasEncuestas = response.encuestas;
-                  filtrarYRenderizarEncuestas();
-              } else { $grid.html('<p class="grid-vacia">Error al cargar: ' + (response.mensaje || 'Error desconocido') + '</p>'); }
+              if (response.success && response.encuestas) { todasLasEncuestas = response.encuestas; filtrarYRenderizarEncuestas(); }
+              else { $grid.html('<p class="grid-vacia">Error al cargar: ' + (response.mensaje || 'Error desconocido') + '</p>'); }
           },
           error: function() { $loading.hide(); $grid.html('<p class="grid-vacia">Error de conexión.</p>'); }
       });
   }
-
-  // Función para filtrar y renderizar encuestas
   function filtrarYRenderizarEncuestas() {
       const $grid = $("#encuestas-grid").empty();
       const filtroTexto = $("#filtroBusqueda").val().toLowerCase();
       const filtroTipo = $("#filtroTipo").val();
       const filtroOrden = $("#filtroOrden").val();
-
       let encuestasFiltradas = todasLasEncuestas.filter(e => {
-          const textoCoincide = !filtroTexto ||
-                               (e.titulo && e.titulo.toLowerCase().includes(filtroTexto)) ||
-                               (e.descripcion && e.descripcion.toLowerCase().includes(filtroTexto)) ||
-                               (e.encuestador_nombre && e.encuestador_nombre.toLowerCase().includes(filtroTexto));
+          const textoCoincide = !filtroTexto || (e.titulo && e.titulo.toLowerCase().includes(filtroTexto)) || (e.descripcion && e.descripcion.toLowerCase().includes(filtroTexto)) || (e.encuestador_nombre && e.encuestador_nombre.toLowerCase().includes(filtroTexto));
           const tipoCoincide = filtroTipo === 'todas' || e.visibilidad === filtroTipo;
           return textoCoincide && tipoCoincide;
       });
-
-      encuestasFiltradas.sort((a, b) => {
-          const dateA = new Date(a.fecha_creacion); const dateB = new Date(b.fecha_creacion);
-          return filtroOrden === 'recientes' ? dateB - dateA : dateA - dateB;
-      });
-
-      if (encuestasFiltradas.length === 0 && (filtroTexto || filtroTipo !== 'todas')) {
-           $grid.html('<p class="grid-vacia">No se encontraron encuestas con los filtros aplicados.</p>');
-      } else if (encuestasFiltradas.length === 0) {
-           $grid.html('<p class="grid-vacia">No hay encuestas disponibles en este momento.</p>');
-      } else {
-           renderEncuestas(encuestasFiltradas);
-      }
+      encuestasFiltradas.sort((a, b) => { const dateA = new Date(a.fecha_creacion); const dateB = new Date(b.fecha_creacion); return filtroOrden === 'recientes' ? dateB - dateA : dateA - dateB; });
+      if (encuestasFiltradas.length === 0 && (filtroTexto || filtroTipo !== 'todas')) { $grid.html('<p class="grid-vacia">No se encontraron encuestas.</p>'); }
+      else if (encuestasFiltradas.length === 0) { $grid.html('<p class="grid-vacia">No hay encuestas disponibles.</p>'); }
+      else { renderEncuestas(encuestasFiltradas); }
   }
-
-  // Eventos de filtros
   $("#filtroBusqueda, #filtroTipo, #filtroOrden").on('input change', filtrarYRenderizarEncuestas);
-
 
   // Renderizar tarjetas de encuestas
   function renderEncuestas(list){
     const $grid=$("#encuestas-grid").empty();
-    // ✅ Leer la nueva clave de localStorage
+    // ✅ Leer AMBOS localStorages
     const respondidasLocal = JSON.parse(localStorage.getItem('encuestasRespondidasLocalmente') || '{}');
-    console.log("LocalStorage: Leyendo modos de respuesta:", respondidasLocal); // Para depurar
-
-    if (list.length === 0 && $("#filtroBusqueda").val()) {
-        $grid.html('<p class="grid-vacia">No se encontraron encuestas con los filtros aplicados.</p>'); return;
-    } else if (list.length === 0) {
-         $grid.html('<p class="grid-vacia">No hay encuestas disponibles en este momento.</p>'); return;
-    }
-
+    
     list.forEach(e=>{
       const id=e.id_encuesta;
       const vis=e.visibilidad==="identificada"?"Identificada":"Anónima";
@@ -240,55 +190,30 @@ $(function(){
       const descripcion = $('<div>').text(e.descripcion || 'Sin descripción').html();
       const encuestador = $('<div>').text(e.encuestador_nombre || 'Encuestador').html();
       const fechaFormateada = new Date(e.fecha_creacion).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
-
       let botonHtml = '';
-      const respondidaIdentificado = e.ya_respondida; // Viene del backend (true/false)
-      const modoRespuestaLocal = respondidasLocal[id]; // Viene de localStorage ('identificado' o 'anonimo')
+      const respondidaIdentificado = e.ya_respondida;
+      const modoRespuestaLocal = respondidasLocal[id];
 
-      // ✅ Lógica de botón simplificada
       if (respondidaIdentificado) {
-          // 1. Prioridad: La BD dice que respondió (identificado)
           botonHtml = `<button class="btn-ver" data-id="${id}" data-modo="identificado" data-titulo="${titulo}">Ver mis respuestas</button>`;
-      } else if (modoRespuestaLocal) {
-           // 2. localStorage dice que respondió (probablemente anónimo)
-           // Usamos el modo que guardamos en localStorage
+      } else if (modoRespuestaLocal) { // 'identificado' o 'anonimo'
            botonHtml = `<button class="btn-ver" data-id="${id}" data-modo="${modoRespuestaLocal}" data-titulo="${titulo}">Ver mis respuestas</button>`;
       } else {
-          // 3. No ha respondido
-          botonHtml = `<button class="btn-encuesta" data-id="${id}">Responder encuesta</button>`;
+          botonHtml = `<button class="btn-encuesta" data-id="${id}" data-titulo="${titulo}">Responder encuesta</button>`;
       }
-      // --- Fin Lógica Botón ---
-
-      const card=`
-      <article class="enc-card" data-id="${id}">
-        <header><h3>${titulo}</h3><p>${descripcion}</p></header>
-        <p class="meta">${icon} ${vis} ${e.visibilidad === 'identificada' ? ' - ' + encuestador : ''}</p>
-        <p class="fecha"><i class="fa-solid fa-calendar-days"></i> ${fechaFormateada}</p>
-        <footer>${botonHtml}</footer>
-      </article>`;
+      const card=`<article class="enc-card" data-id="${id}"><header><h3>${titulo}</h3><p>${descripcion}</p></header><p class="meta">${icon} ${vis} ${e.visibilidad === 'identificada' ? ' - ' + encuestador : ''}</p><p class="fecha"><i class="fa-solid fa-calendar-days"></i> ${fechaFormateada}</p><footer>${botonHtml}</footer></article>`;
       $grid.append(card);
     });
   }
   
   // Ir a responder encuesta
- $(document).on("click",".btn-encuesta",function(){
+  $(document).on("click",".btn-encuesta",function(){
     const idEncuesta=$(this).data("id");
-    // Obtener el título de la tarjeta para pasarlo
-    const titulo = $(this).closest('.enc-card').find('h3').text();
-
-    let swalOptions = {
-        title: '¿Cómo deseas responder?',
-        text: 'Puedes responder con tu nombre o de forma anónima (si la encuesta lo permite).',
-        icon: 'question', showCancelButton: true, confirmButtonText: 'Identificado',
-        cancelButtonText: 'Anónimo', reverseButtons: true
-    };
-    
-    // Ya no hay lógica de contador aquí
-
+    const titulo = $(this).data("titulo") || "Encuesta"; // Pasar el título
+    // Ya no hay límite de 2 respuestas
+    let swalOptions = { title: '¿Cómo deseas responder?', text: 'Puedes responder con tu nombre o de forma anónima (si la encuesta lo permite).', icon: 'question', showCancelButton: true, confirmButtonText: 'Identificado', cancelButtonText: 'Anónimo', reverseButtons: true };
     Swal.fire(swalOptions).then((result) => {
-        // No hay chequeo de límite
         let modo = result.isConfirmed ? 'identificado' : 'anonimo';
-        // ✅ Pasar el título a la siguiente página
         window.location.href = `responder_encuesta.php?id=${idEncuesta}&modo=${modo}&titulo=${encodeURIComponent(titulo)}`;
     });
   });
@@ -298,36 +223,26 @@ $(function(){
       const $grid = $("#historial-grid");
       const $loading = $("#loading-historial");
       $grid.empty(); $loading.show();
-
       $.ajax({
-          url: '../api/obtenerEncuestasRespondidas.php',
-          method: 'GET', dataType: 'json',
+          url: '../api/obtenerEncuestasRespondidas.php', method: 'GET', dataType: 'json',
           success: function(response) {
               $loading.hide();
               if (response.success && response.encuestas_respondidas) {
                   historialEncuestas = response.encuestas_respondidas;
-                  if (historialEncuestas.length === 0) {
-                      $grid.html('<p class="grid-vacia">Aún no has respondido ninguna encuesta de forma identificada.</p>');
-                  } else { renderHistorial(historialEncuestas); }
+                  if (historialEncuestas.length === 0) { $grid.html('<p class="grid-vacia">Aún no has respondido ninguna encuesta de forma identificada.</p>'); }
+                  else { renderHistorial(historialEncuestas); }
               } else { $grid.html('<p class="grid-vacia">Error al cargar historial: ' + response.mensaje + '</p>'); }
           },
           error: function() { $loading.hide(); $grid.html('<p class="grid-vacia">Error de conexión.</p>'); }
       });
   }
-
-  // Renderizar tarjetas de historial
   function renderHistorial(list){
     const $grid=$("#historial-grid").empty();
     list.forEach(e=>{
       const fechaFormateada = new Date(e.fecha_respondida).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
       const titulo = $('<div>').text(e.titulo).html();
       const btn=`<button class="btn-ver" data-id="${e.id_encuesta}" data-modo="identificado" data-titulo="${titulo}">Ver mis respuestas</button>`;
-      const card=`
-      <article class="hist-card" data-id="${e.id_encuesta}">
-        <p><strong>Nombre de la encuesta:</strong> ${titulo}</p>
-        <p><strong>Fecha respondida:</strong> ${fechaFormateada}</p>
-        ${btn}
-      </article>`;
+      const card=`<article class="hist-card" data-id="${e.id_encuesta}"><p><strong>Nombre de la encuesta:</strong> ${titulo}</p><p><strong>Fecha respondida:</strong> ${fechaFormateada}</p>${btn}</article>`;
       $grid.append(card);
     });
   }
@@ -339,101 +254,106 @@ $(function(){
     const tituloEncuesta = $(this).data("titulo") || "Encuesta";
 
     if (modoRespuesta === 'identificado') {
-        mostrarMisRespuestas(idEncuesta, tituloEncuesta);
+        // --- Si fue identificado, llamar a la API ---
+        mostrarMisRespuestasAPI(idEncuesta, tituloEncuesta);
     } else {
-        Swal.fire({
-            title: 'Respuesta Anónima', text: 'Respondiste esta encuesta de forma anónima, por lo que no es posible mostrar tus respuestas individuales.',
-            icon: 'info', confirmButtonText: "Entendido", confirmButtonColor: "#3b65f1"
-        });
+        // --- ✅ Si fue anónimo, leer de localStorage ---
+        try {
+            const cacheRespuestas = JSON.parse(localStorage.getItem('respuestasAnonimasCache') || '{}');
+            const encuestaGuardada = cacheRespuestas[idEncuesta];
+            
+            if (encuestaGuardada && encuestaGuardada.preguntas) {
+                // Encontramos los datos anónimos, construir el modal
+                const htmlContenido = construirModalHtml(encuestaGuardada.preguntas);
+                mostrarModalConHtml(tituloEncuesta, htmlContenido);
+            } else {
+                // No encontramos los datos en cache (raro, pero posible si borró caché)
+                Swal.fire({ title: 'Respuesta Anónima', text: 'Respondiste anónimamente, pero no encontramos tus respuestas guardadas en este navegador.', icon: 'info', confirmButtonText: "Entendido", confirmButtonColor: "#3b65f1" });
+            }
+        } catch(e) {
+            console.error("Error leyendo cache de respuestas anónimas:", e);
+            Swal.fire("Error", "No se pudieron cargar tus respuestas anónimas guardadas.", "error");
+        }
     }
   });
 
-  /* === FUNCIÓN: Modal Estilo Forms (CORREGIDA) === */
-  function mostrarMisRespuestas(idEncuesta, tituloEncuesta) {
-      Swal.fire({
-          title: `Cargando tus respuestas para "${tituloEncuesta}"...`,
-          allowOutsideClick: false,
-          didOpen: () => { Swal.showLoading(); }
-      });
-
+  /* === Función: Llamar a API para respuestas identificadas === */
+  function mostrarMisRespuestasAPI(idEncuesta, tituloEncuesta) {
+      Swal.fire({ title: `Cargando tus respuestas para "${tituloEncuesta}"...`, allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
       $.ajax({
           url: `../api/obtenerMisRespuestasDeEncuesta.php?id_encuesta=${idEncuesta}`,
-          method: 'GET',
-          dataType: 'json',
+          method: 'GET', dataType: 'json',
           success: function(response) {
-              // ✅ CORRECCIÓN: El array está en 'response.encuesta_con_respuestas'
               if (response.success && response.encuesta_con_respuestas && Array.isArray(response.encuesta_con_respuestas)) {
-                  let htmlContenidoForm = '';
-                  let preguntaNumero = 1;
-
-                  if (response.encuesta_con_respuestas.length === 0) {
-                       // Esto puede pasar si la API 'obtenerMisRespuestasDeEncuesta' usa 'getRespuestasAlumno'
-                       // y esta última devuelve null porque no hay respuestas.
-                       htmlContenidoForm = `<div class="swal-no-respuesta">No se encontraron respuestas registradas para ti en esta encuesta.</div>`;
-                  } else {
-                      response.encuesta_con_respuestas.forEach(pregunta => {
-                          htmlContenidoForm += `
-                              <div class="swal-pregunta-block">
-                                  <h4>${preguntaNumero}. ${$('<div>').text(pregunta.texto_pregunta).html()}</h4>`;
-
-                          const respuesta = pregunta.respuesta_alumno;
-                          
-                          if (pregunta.tipo_pregunta === 'abierta') {
-                              let textoRespuesta = '<div class="swal-no-respuesta"><em>No respondiste.</em></div>';
-                              if(respuesta && respuesta.texto_respuesta_abierta) {
-                                  textoRespuesta = `<div class="swal-respuesta-abierta-display">${$('<div>').text(respuesta.texto_respuesta_abierta).html()}</div>`;
-                              }
-                              htmlContenidoForm += textoRespuesta;
-                          } 
-                          else if (pregunta.opciones && pregunta.opciones.length > 0) {
-                              pregunta.opciones.forEach(opcion => {
-                                  let esSeleccionada = false;
-                                  if (respuesta && respuesta.opciones_seleccionadas) {
-                                      esSeleccionada = respuesta.opciones_seleccionadas.includes(opcion.id_opcion);
-                                  }
-                                  let iconClass = 'fa-regular fa-circle';
-                                  if (pregunta.tipo_pregunta === 'seleccion_multiple') { iconClass = 'fa-regular fa-square'; }
-                                  if (esSeleccionada) { iconClass = (pregunta.tipo_pregunta === 'seleccion_multiple') ? 'fa-solid fa-square-check' : 'fa-solid fa-check-circle'; }
-                                  
-                                  const textoOpcion = $('<div>').text(opcion.texto_opcion).html();
-                                  htmlContenidoForm += `<div class="swal-opcion-display ${esSeleccionada ? 'selected' : ''}"><i class="${iconClass}"></i> ${textoOpcion}</div>`;
-                              });
-                          } else {
-                               htmlContenidoForm += `<div class="swal-no-respuesta"><em>(Pregunta sin opciones)</em></div>`;
-                          }
-                          htmlContenidoForm += `</div>`;
-                          preguntaNumero++;
-                      });
-                  }
-
-                  Swal.update({
-                      title: null,
-                      html: `
-                          <div class="swal-header-response-alumno">
-                              <h3 class="swal-title-response-alumno">Tus respuestas para "${$('<div>').text(tituloEncuesta).html()}"</h3>
-                          </div>
-                          <div class="swal-container-alumno-respuestas">
-                              ${htmlContenidoForm}
-                          </div>
-                      `,
-                      icon: undefined,
-                      width: '800px',
-                      showConfirmButton: true,
-                      confirmButtonText: "Cerrar"
-                  });
-
+                  // ✅ Usar el constructor de HTML
+                  const htmlContenido = construirModalHtml(response.encuesta_con_respuestas);
+                  // ✅ Mostrar el modal
+                  mostrarModalConHtml(tituloEncuesta, htmlContenido);
               } else {
-                  Swal.fire("Error", response.mensaje || "No se pudieron cargar tus respuestas.", "warning");
+                  if(response.success && !response.encuesta_con_respuestas) { Swal.fire("Sin respuestas", "No se encontraron respuestas identificadas para esta encuesta.", "warning"); }
+                  else { Swal.fire("Error", response.mensaje || "No se pudieron cargar tus respuestas.", "warning"); }
               }
           },
           error: function(jqXHR) {
-              let msg = "Error de conexión al buscar tus respuestas.";
-              if (jqXHR.status === 403) msg = "Acceso denegado.";
+              let msg = "Error de conexión."; if (jqXHR.status === 403) msg = "Acceso denegado.";
               console.error("Error AJAX en mostrarMisRespuestas:", jqXHR.responseText);
               Swal.fire("Error", msg, "error");
           }
       });
   }
+
+  /* === ✅ NUEVA: Función para CONSTRUIR el HTML del modal --- */
+  function construirModalHtml(preguntas) {
+      let htmlContenidoForm = '';
+      let preguntaNumero = 1;
+      if (preguntas.length === 0) {
+           htmlContenidoForm = `<div class="swal-no-respuesta">No se encontraron preguntas.</div>`;
+      } else {
+          preguntas.forEach(pregunta => {
+              htmlContenidoForm += `<div class="swal-pregunta-block"><h4>${preguntaNumero}. ${$('<div>').text(pregunta.texto_pregunta).html()}</h4>`;
+              const respuesta = pregunta.respuesta_alumno;
+              if (pregunta.tipo_pregunta === 'abierta') {
+                  let textoRespuesta = '<div class="swal-no-respuesta"><em>No respondiste.</em></div>';
+                  if(respuesta && respuesta.texto_respuesta_abierta) { textoRespuesta = `<div class="swal-respuesta-abierta-display">${$('<div>').text(respuesta.texto_respuesta_abierta).html()}</div>`; }
+                  htmlContenidoForm += textoRespuesta;
+              } 
+              else if (pregunta.opciones && pregunta.opciones.length > 0) {
+                  pregunta.opciones.forEach(opcion => {
+                      let esSeleccionada = false;
+                      if (respuesta && respuesta.opciones_seleccionadas) { esSeleccionada = respuesta.opciones_seleccionadas.includes(opcion.id_opcion); }
+                      let iconClass = 'fa-regular fa-circle';
+                      if (pregunta.tipo_pregunta === 'seleccion_multiple') { iconClass = 'fa-regular fa-square'; }
+                      if (esSeleccionada) { iconClass = (pregunta.tipo_pregunta === 'seleccion_multiple') ? 'fa-solid fa-square-check' : 'fa-solid fa-check-circle'; }
+                      const textoOpcion = $('<div>').text(opcion.texto_opcion).html();
+                      htmlContenidoForm += `<div class="swal-opcion-display ${esSeleccionada ? 'selected' : ''}"><i class="${iconClass}"></i> ${textoOpcion}</div>`;
+                  });
+              } else { htmlContenidoForm += `<div class="swal-no-respuesta"><em>(Pregunta sin opciones)</em></div>`; }
+              htmlContenidoForm += `</div>`;
+              preguntaNumero++;
+          });
+      }
+      return htmlContenidoForm;
+  }
+  
+  /* === ✅ NUEVA: Función para MOSTRAR el modal con HTML --- */
+  function mostrarModalConHtml(tituloEncuesta, contenidoHtml) {
+       Swal.fire({ // Usar fire() en lugar de update()
+          title: null,
+          html: `
+              <div class="swal-header-response-alumno">
+                  <h3 class="swal-title-response-alumno">Tus respuestas para "${$('<div>').text(tituloEncuesta).html()}"</h3>
+              </div>
+              <div class="swal-container-alumno-respuestas">
+                  ${contenidoHtml}
+              </div>
+          `,
+          icon: undefined,
+          width: '800px',
+          showConfirmButton: true,
+          confirmButtonText: "Cerrar"
+      });
+  }
+
 
   /* === Cambiar contraseña (SweetAlert) === */
   $("#btn-editar-pass").on("click", function(){
@@ -482,17 +402,31 @@ $(function(){
   /* === Lógica de Carga Inicial === */
   const urlParams = new URLSearchParams(window.location.search);
   const idVerRespuestas = urlParams.get('verRespuestas');
-  // ✅ Leer el título desde el parámetro de la URL
-  const tituloEncuestaResp = urlParams.get('titulo');
+  const modoVerRespuestas = urlParams.get('modo'); // 'identificado' o 'anonimo'
+  const tituloEncuestaResp = urlParams.get('titulo'); // Título de la encuesta
 
-  if (idVerRespuestas && !isNaN(idVerRespuestas)) {
-      // Si el parámetro existe, lanzar el modal
+  if (idVerRespuestas && !isNaN(idVerRespuestas) && modoVerRespuestas) {
       setTimeout(() => {
-          // Usar el título de la URL (decodificado) o un genérico
           const titulo = tituloEncuestaResp ? decodeURIComponent(tituloEncuestaResp) : "Encuesta Respondida";
-          mostrarMisRespuestas(parseInt(idVerRespuestas), titulo);
-      }, 500); // 500ms de espera
-      history.replaceState(null, '', window.location.pathname); // Limpiar URL
+          if (modoVerRespuestas === 'identificado') {
+              mostrarMisRespuestasAPI(parseInt(idVerRespuestas), titulo);
+          } else {
+              // Si es anónimo, leer de localStorage
+               try {
+                  const cacheRespuestas = JSON.parse(localStorage.getItem('respuestasAnonimasCache') || '{}');
+                  const encuestaGuardada = cacheRespuestas[idVerRespuestas];
+                  if (encuestaGuardada && encuestaGuardada.preguntas) {
+                      const htmlContenido = construirModalHtml(encuestaGuardada.preguntas);
+                      mostrarModalConHtml(titulo, htmlContenido);
+                  } else {
+                      Swal.fire('Error', 'No se encontraron tus respuestas anónimas guardadas en este navegador.', 'warning');
+                  }
+               } catch(e) {
+                   Swal.fire('Error', 'No se pudieron cargar tus respuestas anónimas.', 'error');
+               }
+          }
+      }, 500);
+      history.replaceState(null, '', window.location.pathname);
   } else {
       // Cargar la vista de encuestas por defecto
       $("#btn-encuestas").trigger('click');
