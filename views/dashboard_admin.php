@@ -146,33 +146,74 @@ $nombre = htmlspecialchars($usuario['nombre']);
         .btn-crear-usuario:disabled { background-color: #aaa; }
         .btn-crear-encuestador { background-color: #28a745; } /* Verde */
         .btn-crear-alumno { background-color: #007bff; } /* Azul */
+
+        /* --- NUEVO: Estilos para la página de Estadísticas --- */
+        .stats-grid {
+            display: grid;
+            /* Usar 1 columna en móvil, 2 en pantallas más grandes */
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        .stat-card {
+            background: #fff;
+            padding: 20px 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .stat-card h3 {
+            margin-top: 0;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            color: #333;
+        }
+        /* Ajustar contenedores de gráficos para la cuadrícula */
+        .stats-grid .pie-chart-container {
+            max-width: 350px;
+            height: 350px;
+            margin: 20px auto;
+        }
+        .stats-grid .bar-chart-container {
+            width: 100%;
+            height: 350px;
+            margin: 20px auto;
+        }
+        /* Media query para 2 columnas */
+        @media (min-width: 992px) {
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="dashboard-wrapper">
         <header class="dashboard-header">
-            <div class="header-left-group">
-                <div class="header-logo">Panel Admin</div>
-                <nav class="dashboard-tabs">
-                    <a href="#" class="tab-link active" id="btn-tab-gestion-usuarios">
-                        <i class="fa-solid fa-users-cog"></i> Gestión de Usuarios
-                    </a>
-                    <a href="#" class="tab-link" id="btn-tab-gestion-encuestas">
-                        <i class="fa-solid fa-list-ul"></i> Gestión de Encuestas
-                    </a>
-                </nav>
-            </div>
-            <div class="header-right-group">
-                <a href="logout.php" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
-                <div class="user-profile"><i class="fa-solid fa-shield-halved"></i> <span><?php echo $nombre; ?></span></div>
-            </div>
-        </header>
+        <div class="header-left-group">
+            <div class="header-logo">Panel Admin</div>
+            <nav class="dashboard-tabs">
+                <a href="#" class="tab-link active" id="btn-tab-estadisticas">
+                    <i class="fa-solid fa-chart-line"></i> Estadísticas
+                </a>
+                <a href="#" class="tab-link" id="btn-tab-gestion-usuarios">
+                    <i class="fa-solid fa-users-cog"></i> Gestión de Usuarios
+                </a>
+                <a href="#" class="tab-link" id="btn-tab-gestion-encuestas">
+                    <i class="fa-solid fa-list-ul"></i> Gestión de Encuestas
+                </a>
+            </nav>
+        </div>
+        <div class="header-right-group">
+            <a href="logout.php" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
+            <div class="user-profile"><i class="fa-solid fa-shield-halved"></i> <span><?php echo $nombre; ?></span></div>
+        </div>
+    </header>
 
         <main class="dashboard-content" id="dashboard-content-container">
             </main>
     </div>
 
-    <script>
+   <script>
         // Configuración global de Toasts
         const Toast = Swal.mixin({
             toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true,
@@ -187,23 +228,108 @@ $nombre = htmlspecialchars($usuario['nombre']);
 
         // --- Cargar Vistas del Admin ---
 
-        // 1. Cargar "Gestión de Usuarios" (Formulario crear encuestador)
+        // ✅ NUEVA: Cargar "Estadísticas"
+        function cargarEstadisticas() {
+            activarTab('#btn-tab-estadisticas');
+            const container = $('#dashboard-content-container');
+            container.html('<div id="loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando estadísticas...</div>');
+
+            $.ajax({
+                url: '../api/adminObtenerEstadisticas.php',
+                method: 'GET', dataType: 'json',
+                success: function(response) {
+                    if (response.success && response.estadisticas) {
+                        const stats = response.estadisticas;
+                        
+                        let html = `
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <h3>Encuestas Publicadas por Visibilidad</h3>
+                                    <div class="pie-chart-container">
+                                        <canvas id="visibilidadPieChart"></canvas>
+                                    </div>
+                                </div>
+                                <div class="stat-card">
+                                    <h3>Total de Preguntas Creadas por Tipo</h3>
+                                    <div class="bar-chart-container">
+                                        <canvas id="tiposPreguntaBarChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>`;
+                        container.html(html);
+
+                        // Inicializar Gráfico de Visibilidad (Pastel)
+                        try {
+                            const visData = stats.visibilidad || [];
+                            const visLabels = visData.map(item => item.visibilidad.charAt(0).toUpperCase() + item.visibilidad.slice(1));
+                            const visCounts = visData.map(item => item.total);
+                            
+                            if(visData.length > 0){
+                                const ctxPie = document.getElementById('visibilidadPieChart').getContext('2d');
+                                new Chart(ctxPie, {
+                                    type: 'pie',
+                                    data: {
+                                        labels: visLabels,
+                                        datasets: [{
+                                            label: 'Encuestas',
+                                            data: visCounts,
+                                            backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(201, 203, 207, 0.7)'],
+                                            borderColor: ['rgba(75, 192, 192, 1)', 'rgba(201, 203, 207, 1)'],
+                                        }]
+                                    },
+                                    options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } } }
+                                });
+                            } else {
+                                $('#visibilidadPieChart').parent().html('<p style="text-align:center; padding: 20px;">No hay encuestas publicadas para mostrar.</p>');
+                            }
+                        } catch (e) { console.error("Error al crear gráfico de visibilidad:", e); }
+
+                        // Inicializar Gráfico de Tipos de Pregunta (Barras)
+                        try {
+                            const tiposData = stats.tipos_pregunta || [];
+                            const tiposLabels = tiposData.map(item => item.tipo_pregunta); // Ya vienen formateados
+                            const tiposCounts = tiposData.map(item => item.total);
+
+                             if(tiposData.length > 0){
+                                const ctxBar = document.getElementById('tiposPreguntaBarChart').getContext('2d');
+                                new Chart(ctxBar, {
+                                    type: 'bar',
+                                    data: {
+                                        labels: tiposLabels,
+                                        datasets: [{
+                                            label: 'Total de Preguntas',
+                                            data: tiposCounts,
+                                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                                            borderColor: 'rgba(54, 162, 235, 1)',
+                                            borderWidth: 1
+                                        }]
+                                    },
+                                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } }
+                                });
+                            } else {
+                                $('#tiposPreguntaBarChart').parent().html('<p style="text-align:center; padding: 20px;">No se han creado preguntas aún.</p>');
+                            }
+                        } catch (e) { console.error("Error al crear gráfico de tipos:", e); }
+
+                    } else {
+                        container.html(`<p style="color: red;">${response.mensaje || 'No se pudieron cargar las estadísticas.'}</p>`);
+                    }
+                },
+                error: function() { container.html('<p style="color: red;">Error de conexión.</p>'); }
+            });
+        }
+
+        // 1. Cargar "Gestión de Usuarios"
         function cargarGestionUsuarios() {
             activarTab('#btn-tab-gestion-usuarios');
             const container = $('#dashboard-content-container');
-            
-            const tabsHtml = `
+            const formHtml = `
                 <div class="inner-tabs-container">
                     <div class="inner-tab-buttons">
-                        <button class="inner-tab-link active" data-tab="crear-encuestador">
-                            <i class="fa-solid fa-user-tie"></i> Registrar Encuestador
-                        </button>
-                        <button class="inner-tab-link" data-tab="crear-alumno">
-                            <i class="fa-solid fa-user-graduate"></i> Registrar Alumno
-                        </button>
+                        <button class="inner-tab-link active" data-tab="crear-encuestador"><i class="fa-solid fa-user-tie"></i> Registrar Encuestador</button>
+                        <button class="inner-tab-link" data-tab="crear-alumno"><i class="fa-solid fa-user-graduate"></i> Registrar Alumno</button>
                     </div>
                     <div class="inner-tab-content">
-                        
                         <div id="tab-crear-encuestador" class="inner-tab-pane active">
                             <form id="form-crear-encuestador">
                                 <h2 style="text-align: center; margin-bottom: 20px;">Registrar Nuevo Encuestador (Maestro)</h2>
@@ -215,7 +341,6 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                 <button type="submit" class="btn-crear-usuario btn-crear-encuestador"><i class="fa-solid fa-user-plus"></i> Crear Encuestador</button>
                             </form>
                         </div>
-                        
                         <div id="tab-crear-alumno" class="inner-tab-pane">
                             <form id="form-crear-alumno">
                                 <h2 style="text-align: center; margin-bottom: 20px;">Registrar Nuevo Alumno</h2>
@@ -226,9 +351,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                 <div class="form-group"><label for="admin-genero-alu">Género</label>
                                     <select id="admin-genero-alu" required>
                                         <option value="" disabled selected>Seleccione...</option>
-                                        <option value="masculino">Masculino</option>
-                                        <option value="femenino">Femenino</option>
-                                        <option value="otro">Otro</option>
+                                        <option value="masculino">Masculino</option><option value="femenino">Femenino</option><option value="otro">Otro</option>
                                     </select>
                                 </div>
                                 <div class="form-group"><label for="admin-contrasena-alu">Contraseña</label><input type="password" id="admin-contrasena-alu" required><div class="password-hint">Debe cumplir: 8+ carac, 1 especial, termina en "AL"</div></div>
@@ -236,27 +359,21 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                 <button type="submit" class="btn-crear-usuario btn-crear-alumno"><i class="fa-solid fa-user-plus"></i> Crear Alumno</button>
                             </form>
                         </div>
-
                     </div>
                 </div>`;
-            container.html(tabsHtml);
+            container.html(formHtml);
         }
 
-        // 2. Cargar "Gestión de Encuestas" (Acordeón de Encuestadores)
+        // 2. Cargar "Gestión de Encuestas"
         function cargarGestionEncuestas() {
             activarTab('#btn-tab-gestion-encuestas');
             const container = $('#dashboard-content-container');
             container.html('<div id="loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando encuestadores...</div>');
-
             $.ajax({
-                url: '../api/adminListarEncuestadores.php',
-                method: 'GET', dataType: 'json',
+                url: '../api/adminListarEncuestadores.php', method: 'GET', dataType: 'json',
                 success: function(response) {
                     if (response.success && response.encuestadores) {
-                        if (response.encuestadores.length === 0) {
-                            container.html('<h3>No hay encuestadores registrados.</h3><p>Usa la pestaña "Gestión de Usuarios" para añadir uno.</p>'); return;
-                        }
-                        
+                        if (response.encuestadores.length === 0) { container.html('<h3>No hay encuestadores registrados.</h3>'); return; }
                         let accordionHtml = '<div class="lista-encuestadores-admin">';
                         response.encuestadores.forEach(enc => {
                             accordionHtml += `
@@ -265,13 +382,10 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                         <span><i class="fa-solid fa-user-tie"></i> ${enc.apellido}, ${enc.nombre} (${enc.email})</span>
                                         <i class="fa-solid fa-chevron-down icon-chevron"></i>
                                     </button>
-                                    <div class="panel-encuestas" id="panel-encuestador-${enc.id_usuario}">
-                                        <div class="panel-loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</div>
-                                    </div>
+                                    <div class="panel-encuestas" id="panel-encuestador-${enc.id_usuario}"><div class="panel-loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</div></div>
                                 </div>`;
                         });
-                        accordionHtml += '</div>';
-                        container.html(accordionHtml);
+                        accordionHtml += '</div>'; container.html(accordionHtml);
                     } else { container.html(`<p style="color: red;">${response.mensaje}</p>`); }
                 },
                 error: function() { container.html('<p style="color: red;">Error de conexión.</p>'); }
@@ -283,10 +397,8 @@ $nombre = htmlspecialchars($usuario['nombre']);
             activarTab(null);
             const container = $('#dashboard-content-container');
             container.html('<div id="loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando resultados...</div>');
-
             $.ajax({
-                url: `../api/adminObtenerResultados.php?id_encuesta=${idEncuesta}`,
-                method: 'GET', dataType: 'json',
+                url: `../api/adminObtenerResultados.php?id_encuesta=${idEncuesta}`, method: 'GET', dataType: 'json',
                 success: function(response) {
                     if (response.success && response.resultados) {
                         const r = response.resultados;
@@ -294,7 +406,6 @@ $nombre = htmlspecialchars($usuario['nombre']);
                         html += `<button id="btn-back-to-encuestas" class="btn-primary" style="background-color: #6c757d; border:none; padding: 8px 12px; border-radius: 5px; color: white; cursor: pointer; margin-bottom: 15px;"><i class="fa-solid fa-arrow-left"></i> Volver a Encuestas</button>`;
                         html += `<div class="resultados-header"><h2>Resultados: ${$('<div>').text(r.titulo).html()}</h2><p>Visibilidad: ${r.visibilidad} | Estado: ${r.estado}</p></div>`;
                         const totalRespuestas = r.resumen_participacion.respuestas_anonimas + r.resumen_participacion.respuestas_identificadas;
-                        
                         html += `
                             <div class="tabs-container-resultados">
                                 <div class="tab-buttons">
@@ -319,29 +430,11 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                     </div>
                                 </div>
                             </div>`;
-                        
-                        html += `</div>`; 
-                        container.html(html);
+                        html += `</div>`; container.html(html);
 
                         // 1. Inicializar Gráfico Pastel
                         if (totalRespuestas > 0) {
-                            try { 
-                                const ctx = document.getElementById('pieChartParticipacion').getContext('2d'); 
-                                new Chart(ctx, { 
-                                    type: 'pie', 
-                                    data: { 
-                                        labels: ['Identificadas', 'Anónimas'], 
-                                        datasets: [{ 
-                                            label: '# de Respuestas', 
-                                            data: [r.resumen_participacion.respuestas_identificadas, r.resumen_participacion.respuestas_anonimas], 
-                                            backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(201, 203, 207, 0.7)'], 
-                                            borderColor: ['rgba(75, 192, 192, 1)', 'rgba(201, 203, 207, 1)'], 
-                                            borderWidth: 1 
-                                        }] 
-                                    }, 
-                                    options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } } } 
-                                }); 
-                            } catch (e) { console.error("Error al crear gráfico pastel:", e); }
+                            try { const ctx = document.getElementById('pieChartParticipacion').getContext('2d'); new Chart(ctx, { type: 'pie', data: { labels: ['Identificadas', 'Anónimas'], datasets: [{ label: '# de Respuestas', data: [r.resumen_participacion.respuestas_identificadas, r.resumen_participacion.respuestas_anonimas], backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(201, 203, 207, 0.7)'], borderColor: ['rgba(75, 192, 192, 1)', 'rgba(201, 203, 207, 1)'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } } } }); } catch (e) { console.error("Error al crear gráfico pastel:", e); }
                         }
 
                         // 2. Generar Gráficos de Barras
@@ -353,57 +446,33 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                 if (['opcion_multiple', 'si_no', 'escala', 'seleccion_multiple'].includes(preg.tipo_pregunta)) {
                                     if (preg.resultados && preg.resultados.length > 0) {
                                         preguntasContablesEncontradas = true;
-                                        const labels = []; const data = []; 
-                                        const backgroundColors = ['rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 159, 64, 0.6)', 'rgba(255, 99, 132, 0.6)']; 
-                                        const borderColors = ['rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)'];
+                                        const labels = []; const data = []; const backgroundColors = ['rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 159, 64, 0.6)', 'rgba(255, 99, 132, 0.6)']; const borderColors = ['rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)'];
                                         preg.resultados.forEach((res, i) => { labels.push(res.texto_opcion); data.push(res.conteo); });
                                         const preguntaGraficoHtml = `<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${textoPreguntaEscapado}</h4><div class="bar-chart-container"><canvas id="barChartPregunta${preg.id_pregunta}"></canvas></div></div>`;
                                         preguntasGraficosContainer.append(preguntaGraficoHtml);
-                                        try { 
-                                            const ctxBar = document.getElementById(`barChartPregunta${preg.id_pregunta}`).getContext('2d'); 
-                                            new Chart(ctxBar, { 
-                                                type: 'bar', 
-                                                data: { labels: labels, datasets: [{ label: '# de Respuestas', data: data, backgroundColor: backgroundColors.slice(0, data.length), borderColor: borderColors.slice(0, data.length), borderWidth: 1 }] }, 
-                                                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } } 
-                                            }); 
-                                        } catch (e) { console.error(`Error al crear gráfico ${preg.id_pregunta}:`, e); }
-                                    } else { 
-                                        preguntasGraficosContainer.append(`<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${textoPreguntaEscapado}</h4><p><em>No hay respuestas.</em></p></div>`); 
-                                    }
+                                        try { const ctxBar = document.getElementById(`barChartPregunta${preg.id_pregunta}`).getContext('2d'); new Chart(ctxBar, { type: 'bar', data: { labels: labels, datasets: [{ label: '# de Respuestas', data: data, backgroundColor: backgroundColors.slice(0, data.length), borderColor: borderColors.slice(0, data.length), borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } } }); } catch (e) { console.error(`Error al crear gráfico ${preg.id_pregunta}:`, e); }
+                                    } else { preguntasGraficosContainer.append(`<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${textoPreguntaEscapado}</h4><p><em>No hay respuestas.</em></p></div>`); }
                                 } else if (preg.tipo_pregunta === 'abierta') {
-                                    preguntasContablesEncontradas = true; 
-                                    let abiertaHtml = `<div class="pregunta-resultado-abierta"><h4>${index + 1}. ${textoPreguntaEscapado} (Respuesta Corta)</h4>`;
-                                    if (preg.resultados && preg.resultados.length > 0) { 
-                                        preg.resultados.forEach(res => { abiertaHtml += `<div class="respuesta-abierta">"${$('<div>').text(res.texto_respuesta).html()}" <span>- ${$('<div>').text(res.participante || 'Anónimo').html()}</span></div>`; }); 
-                                    } else { abiertaHtml += `<p><em>No hay respuestas.</em></p>`; }
-                                    abiertaHtml += `</div>`; 
-                                    preguntasGraficosContainer.append(abiertaHtml);
+                                    preguntasContablesEncontradas = true; let abiertaHtml = `<div class="pregunta-resultado-abierta"><h4>${index + 1}. ${textoPreguntaEscapado} (Respuesta Corta)</h4>`;
+                                    if (preg.resultados && preg.resultados.length > 0) { preg.resultados.forEach(res => { abiertaHtml += `<div class="respuesta-abierta">"${$('<div>').text(res.texto_respuesta).html()}" <span>- ${$('<div>').text(res.participante || 'Anónimo').html()}</span></div>`; }); } else { abiertaHtml += `<p><em>No hay respuestas.</em></p>`; }
+                                    abiertaHtml += `</div>`; preguntasGraficosContainer.append(abiertaHtml);
                                 }
                             });
                             if (!preguntasContablesEncontradas) { preguntasGraficosContainer.html('<div style="text-align: center; padding: 20px;"><p>No hay preguntas contables.</p></div>'); }
-                        } else { 
-                            preguntasGraficosContainer.html('<div style="text-align: center; padding: 30px; border: 1px dashed #ccc; border-radius: 8px; margin-top: 20px;"><i class="fa-solid fa-inbox fa-2x" style="color: #ccc; margin-bottom: 15px;"></i><p><strong>Aún no hay respuestas</strong>.</p></div>'); 
-                        }
+                        } else { preguntasGraficosContainer.html('<div style="text-align: center; padding: 30px; border: 1px dashed #ccc; border-radius: 8px; margin-top: 20px;"><i class="fa-solid fa-inbox fa-2x" style="color: #ccc; margin-bottom: 15px;"></i><p><strong>Aún no hay respuestas</strong>.</p></div>'); }
 
                         // 3. Llenar Pestaña Participantes
                         if (r.visibilidad === 'identificada' && r.participantes_identificados && r.participantes_identificados.length > 0) {
                             $('.tab-button-res[data-tab="participantes"]').show();
-                            const participantesContainer = $('#participantes-lista-container'); 
-                            let listaHtml = '<ul class="lista-participantes">';
+                            const participantesContainer = $('#participantes-lista-container'); let listaHtml = '<ul class="lista-participantes">';
                             r.participantes_identificados.forEach(p => { 
                                 const nombreCompleto = `${p.apellido}, ${p.nombre}`;
                                 const nombreEscapado = $('<div>').text(nombreCompleto).html();
                                 listaHtml += `<li><a href="#" class="participante-link admin-ver-respuestas" data-id-encuesta="${idEncuesta}" data-id-alumno="${p.id_usuario}" data-nombre-alumno="${nombreEscapado}"><i class="fa-solid fa-user"></i> ${nombreEscapado}</a></li>`; 
                             });
-                            listaHtml += '</ul>'; 
-                            participantesContainer.html(listaHtml);
-                        } else { 
-                            $('.tab-button-res[data-tab="participantes"]').hide(); 
-                            $('#participantes-lista-container').html('<p>Encuesta anónima o sin respuestas identificadas.</p>'); 
-                        }
-                    } else { 
-                        container.html(`<p style="color: red;">${response.mensaje || 'Error al cargar resultados.'}</p>`); 
-                    }
+                            listaHtml += '</ul>'; participantesContainer.html(listaHtml);
+                        } else { $('.tab-button-res[data-tab="participantes"]').hide(); $('#participantes-lista-container').html('<p>Encuesta anónima o sin respuestas identificadas.</p>'); }
+                    } else { container.html(`<p style="color: red;">${response.mensaje || 'Error al cargar resultados.'}</p>`); }
                 },
                 error: function() { container.html('<p style="color: red;">Error de conexión.</p>'); }
             });
@@ -446,11 +515,16 @@ $nombre = htmlspecialchars($usuario['nombre']);
 
         // --- Manejadores de Eventos ---
         $(document).ready(function() {
-            cargarGestionUsuarios(); // Cargar vista inicial
+            // ✅ Cargar ESTADÍSTICAS por defecto
+            cargarEstadisticas(); 
 
+            // Navegación principal
+            $('#btn-tab-estadisticas').on('click', (e) => { e.preventDefault(); cargarEstadisticas(); });
             $('#btn-tab-gestion-usuarios').on('click', (e) => { e.preventDefault(); cargarGestionUsuarios(); });
             $('#btn-tab-gestion-encuestas').on('click', (e) => { e.preventDefault(); cargarGestionEncuestas(); });
-            $('.header-logo').on('click', (e) => { e.preventDefault(); cargarGestionUsuarios(); });
+            $('.header-logo').on('click', (e) => { e.preventDefault(); cargarEstadisticas(); }); // Logo lleva a estadísticas
+            
+            // Botón Volver (en vista de resultados)
             $('#dashboard-content-container').on('click', '#btn-back-to-encuestas', (e) => { e.preventDefault(); cargarGestionEncuestas(); });
 
             // Submit: Crear Encuestador
@@ -458,106 +532,53 @@ $nombre = htmlspecialchars($usuario['nombre']);
                 e.preventDefault();
                 const $button = $(this).find('.btn-crear-encuestador');
                 $button.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Creando...');
-                const datos = {
-                    nombre: $('#admin-nombre-enc').val().trim(),
-                    apellido: $('#admin-apellido-enc').val().trim(),
-                    email: $('#admin-email-enc').val().trim(),
-                    asignatura: $('#admin-asignatura-enc').val().trim(),
-                    contrasena: $('#admin-contrasena-enc').val()
-                };
+                const datos = { nombre: $('#admin-nombre-enc').val().trim(), apellido: $('#admin-apellido-enc').val().trim(), email: $('#admin-email-enc').val().trim(), asignatura: $('#admin-asignatura-enc').val().trim(), contrasena: $('#admin-contrasena-enc').val() };
                 const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
                 if (datos.contrasena.length < 8 || !datos.contrasena.toLowerCase().endsWith('al') || !specialCharRegex.test(datos.contrasena)) { Swal.fire('Error', 'La contraseña no cumple los requisitos (8+ carac, 1 especial, termina en "AL").', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); return; }
                  if (!datos.email.toLowerCase().endsWith('@tecmerida.com')) { Swal.fire('Error', 'El correo debe ser @tecmerida.com.', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); return; }
                 $.ajax({
-                    url: '../api/adminCrearEncuestador.php',
-                    method: 'POST', contentType: 'application/json', data: JSON.stringify(datos),
-                    success: function(response) {
-                        if (response.success) { Swal.fire('¡Éxito!', 'Encuestador registrado.', 'success'); $('#form-crear-encuestador')[0].reset(); }
-                        else { Swal.fire('Error', response.mensaje || 'No se pudo registrar.', 'error'); }
-                        $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador');
-                    },
-                    error: function(jqXHR) {
-                        let errorMsg = 'Error de conexión.'; if (jqXHR.responseJSON && jqXHR.responseJSON.mensaje) { errorMsg = jqXHR.responseJSON.mensaje; }
-                        Swal.fire('Error', errorMsg, 'error');
-                        $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador');
-                    }
+                    url: '../api/adminCrearEncuestador.php', method: 'POST', contentType: 'application/json', data: JSON.stringify(datos),
+                    success: function(response) { if (response.success) { Swal.fire('¡Éxito!', 'Encuestador registrado.', 'success'); $('#form-crear-encuestador')[0].reset(); } else { Swal.fire('Error', response.mensaje || 'No se pudo registrar.', 'error'); } $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); },
+                    error: function(jqXHR) { let errorMsg = 'Error de conexión.'; if (jqXHR.responseJSON && jqXHR.responseJSON.mensaje) { errorMsg = jqXHR.responseJSON.mensaje; } Swal.fire('Error', errorMsg, 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); }
                 });
             });
 
-            // --- ✅ NUEVO: Evento para Pestañas Internas ---
+            // --- ✅ Evento para Pestañas Internas (Gestión de Usuarios) ---
             $('#dashboard-content-container').on('click', '.inner-tab-link', function(e) {
-                e.preventDefault();
-                const tabId = $(this).data('tab');
+                e.preventDefault(); const tabId = $(this).data('tab');
                 $(this).siblings().removeClass('active');
                 $(this).closest('.inner-tabs-container').find('.inner-tab-pane').removeClass('active');
-                $(this).addClass('active');
-                $(`#tab-${tabId}`).addClass('active');
+                $(this).addClass('active'); $(`#tab-${tabId}`).addClass('active');
             });
 
-            // --- ✅ NUEVO: Submit del Formulario Crear Alumno ---
+            // --- ✅ Submit del Formulario Crear Alumno ---
             $('#dashboard-content-container').on('submit', '#form-crear-alumno', function(e) {
                 e.preventDefault();
                 const $button = $(this).find('.btn-crear-alumno');
                 $button.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Creando...');
-
-                const datos = {
-                    nombre: $('#admin-nombre-alu').val().trim(),
-                    apellido: $('#admin-apellido-alu').val().trim(),
-                    email: $('#admin-email-alu').val().trim(),
-                    carrera: $('#admin-carrera-alu').val().trim(),
-                    genero: $('#admin-genero-alu').val(),
-                    contrasena: $('#admin-contrasena-alu').val(),
-                    confirmar_contrasena: $('#admin-confirmar-alu').val()
-                };
-
-                // Validaciones
-                if (datos.contrasena !== datos.confirmar_contrasena) {
-                    Swal.fire('Error', 'Las contraseñas no coinciden.', 'error');
-                    $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno');
-                    return;
-                }
+                const datos = { nombre: $('#admin-nombre-alu').val().trim(), apellido: $('#admin-apellido-alu').val().trim(), email: $('#admin-email-alu').val().trim(), carrera: $('#admin-carrera-alu').val().trim(), genero: $('#admin-genero-alu').val(), contrasena: $('#admin-contrasena-alu').val(), confirmar_contrasena: $('#admin-confirmar-alu').val() };
+                if (datos.contrasena !== datos.confirmar_contrasena) { Swal.fire('Error', 'Las contraseñas no coinciden.', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno'); return; }
                 const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
-                if (datos.contrasena.length < 8 || !datos.contrasena.toLowerCase().endsWith('al') || !specialCharRegex.test(datos.contrasena)) {
-                    Swal.fire('Error', 'La contraseña no cumple los requisitos (8+ carac, 1 especial, termina en "AL").', 'error');
-                    $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno');
-                    return;
-                }
-                if (!datos.genero) {
-                     Swal.fire('Error', 'Debes seleccionar un género.', 'error');
-                    $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno');
-                    return;
-                }
-
-                // Llamar a la API de registrar ALUMNO
+                if (datos.contrasena.length < 8 || !datos.contrasena.toLowerCase().endsWith('al') || !specialCharRegex.test(datos.contrasena)) { Swal.fire('Error', 'La contraseña no cumple los requisitos (8+ carac, 1 especial, termina en "AL").', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno'); return; }
+                if (!datos.genero) { Swal.fire('Error', 'Debes seleccionar un género.', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno'); return; }
                 $.ajax({
-                    url: '../api/registrarAlumno.php',
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify(datos),
+                    url: '../api/registrarAlumno.php', method: 'POST', contentType: 'application/json', data: JSON.stringify(datos),
                     success: function(response) {
-                        if (response.success) {
-                            Swal.fire('¡Éxito!', 'Alumno registrado con éxito.', 'success');
-                            $('#form-crear-alumno')[0].reset(); // Limpiar formulario
-                        } else {
-                            Swal.fire('Error', response.mensaje || 'No se pudo registrar al alumno.', 'error');
-                        }
+                        if (response.success) { Swal.fire('¡Éxito!', 'Alumno registrado con éxito.', 'success'); $('#form-crear-alumno')[0].reset(); }
+                        else { Swal.fire('Error', response.mensaje || 'No se pudo registrar al alumno.', 'error'); }
                         $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno');
                     },
                     error: function(jqXHR) {
                         let errorMsg = 'Error de conexión.';
-                        if (jqXHR.responseJSON && jqXHR.responseJSON.mensaje) {
-                            errorMsg = jqXHR.responseJSON.mensaje;
-                        } else if (jqXHR.status === 409) {
-                            errorMsg = "El correo electrónico ya está registrado.";
-                        }
+                        if (jqXHR.responseJSON && jqXHR.responseJSON.mensaje) { errorMsg = jqXHR.responseJSON.mensaje; }
+                        else if (jqXHR.status === 409) { errorMsg = "El correo electrónico ya está registrado."; }
                         Swal.fire('Error', errorMsg, 'error');
                         $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno');
                     }
                 });
             });
 
-
-            // --- Lógica de Acordeón (Gestión de Encuestas) ---
+            // Lógica de Acordeón (Gestión de Encuestas)
             $('#dashboard-content-container').on('click', '.encuestador-acordeon', function() {
                 const $button = $(this); const $panel = $button.next('.panel-encuestas'); const idEncuestador = $button.data('id');
                 $button.toggleClass('active');

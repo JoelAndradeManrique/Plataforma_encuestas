@@ -414,5 +414,49 @@ class EncuestaController {
              return [ 'estado' => 500, 'success' => false, 'mensaje' => 'Error al procesar resultados admin.', 'error_db' => $e->getMessage() ];
         }
     }
+
+    /**
+     * Obtiene estadísticas globales (para Admin).
+     * @return array
+     */
+    public function obtenerEstadisticasGlobales() {
+        try {
+            $stats_visibilidad = $this->modeloEncuesta->getStatsVisibilidad();
+            $stats_tipos = $this->modeloEncuesta->getStatsTiposPregunta();
+            
+            // Formatear/Traducir los tipos de pregunta para el gráfico
+            $tipos_formateados = [];
+            foreach ($stats_tipos as $tipo) {
+                $nombre_tipo = $tipo['tipo_pregunta'];
+                switch ($tipo['tipo_pregunta']) {
+                    case 'si_no':
+                        $nombre_tipo = 'Verdadero / Falso';
+                        break;
+                    case 'opcion_multiple':
+                        $nombre_tipo = 'Opción Múltiple';
+                        break;
+                    case 'abierta':
+                        $nombre_tipo = 'Respuesta Corta';
+                        break;
+                    case 'escala':
+                        $nombre_tipo = 'Escala (1-5)';
+                        break;
+                }
+                $tipos_formateados[] = ['tipo_pregunta' => $nombre_tipo, 'total' => $tipo['total']];
+            }
+
+            return [
+                'estado' => 200,
+                'success' => true,
+                'estadisticas' => [
+                    'visibilidad' => $stats_visibilidad,
+                    'tipos_pregunta' => $tipos_formateados // Enviar los nombres formateados
+                ]
+            ];
+        } catch (Exception $e) {
+            error_log("Error en obtenerEstadisticasGlobales: " . $e->getMessage());
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al obtener estadísticas.'];
+        }
+    }
 }
 ?>

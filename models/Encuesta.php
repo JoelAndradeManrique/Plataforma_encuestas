@@ -842,6 +842,41 @@ class Encuesta {
 
         return $resultados;
     }
+
+    /**
+     * Obtiene estadísticas globales de visibilidad de encuestas publicadas.
+     * @return array
+     */
+    public function getStatsVisibilidad() {
+        $query = "SELECT visibilidad, COUNT(*) as total
+                  FROM encuestas
+                  WHERE estado = 'publicada'
+                  GROUP BY visibilidad";
+        $stmt = $this->conexion->prepare($query);
+        if (!$stmt) { error_log("Prepare failed (getStatsVisibilidad): ".$this->conexion->error); return []; }
+        $stmt->execute();
+        $resultado = $stmt->get_result();
+        $stats = $resultado->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $stats;
+    }
+
+    /**
+     * Obtiene estadísticas globales de tipos de pregunta creados.
+     * @return array
+     */
+    public function getStatsTiposPregunta() {
+        $query = "SELECT tipo_pregunta, COUNT(*) as total
+                  FROM preguntas
+                  GROUP BY tipo_pregunta";
+        $stmt = $this->conexion->prepare($query);
+         if (!$stmt) { error_log("Prepare failed (getStatsTiposPregunta): ".$this->conexion->error); return []; }
+        $stmt->execute();
+        $resultado = $stmt->get_result();
+        $stats = $resultado->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $stats;
+    }
     
 }
 ?>
