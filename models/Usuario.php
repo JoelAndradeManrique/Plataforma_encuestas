@@ -302,9 +302,9 @@ class Usuario {
     public function createAdmin($datos) {
         
         // --- ✅ CORRECCIÓN CLAVE ---
-        // Usamos el rol 'administrator' (largo) como está en tu ENUM
+        // La consulta AHORA SÍ incluye la columna 'rol' y el valor 'administrator'
         $query = "INSERT INTO Usuarios (nombre, apellido, email, contrasena_hash, rol, password_temporal) 
-                  VALUES (?, ?, ?, ?, 'administrator', FALSE)";
+                  VALUES (?, ?, ?, ?, 'administrador', FALSE)";
         // --- FIN CORRECCIÓN ---
         
         $stmt = $this->conexion->prepare($query);

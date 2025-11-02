@@ -57,7 +57,9 @@
    <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('loginForm');
-        // ... (resto del código de 'ojo' y 'Toast') ...
+        const passwordInput = document.getElementById('password');
+        const eyeIcon = document.querySelector('.eye-icon');
+
         const Toast = Swal.mixin({
             toast: true,
             position: 'top-end',
@@ -70,9 +72,6 @@
             }
         });
 
-        // ... (resto del código de 'ojo') ...
-        const passwordInput = document.getElementById('password');
-        const eyeIcon = document.querySelector('.eye-icon');
         if (eyeIcon) {
             eyeIcon.addEventListener('click', function() {
                 const isPassword = passwordInput.type === 'password';
@@ -84,7 +83,6 @@
         form.addEventListener('submit', function(e) {
             e.preventDefault(); 
             const loginBtn = document.querySelector('.login-btn');
-            // ... (resto del código de 'submit') ...
             loginBtn.textContent = 'Iniciando...';
             loginBtn.disabled = true;
 
@@ -94,7 +92,6 @@
             $.ajax({
                 url: '../api/login.php',
                 method: 'POST',
-                // ... (resto de AJAX) ...
                 contentType: 'application/json',
                 data: JSON.stringify({ email: email, contrasena: contrasena }),
                 success: function(response) {
@@ -116,14 +113,15 @@
                         let destino = ''; 
                         
                         // ✅ CORREGIDO: Comparar con 'administrator'
-                        if (response.usuario.rol === 'administrator') { 
+                        if (response.usuario.rol === 'administrador') { 
                             destino = 'dashboard_admin.php';
                         } else if (response.usuario.rol === 'encuestador') {
-                            destino = 'dashboard_general.php'; // Encuestador SÍ va aquí
+                            destino = 'dashboard_general.php';
                         } else if (response.usuario.rol === 'alumno') {
-                            destino = 'dashboard_alumno.php'; // Alumno va a su NUEVO dashboard
+                            destino = 'dashboard_alumno.php';
                         } else {
-                            destino = 'login.php'; // Seguridad
+                            // Si el rol es NULL o desconocido, vuelve al login
+                            destino = 'login.php'; 
                         }
                         // --- FIN CORRECCIÓN ---
                         
