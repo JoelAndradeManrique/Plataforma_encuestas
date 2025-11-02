@@ -741,6 +741,107 @@ class Encuesta {
         $stmt->close();
         return ($resultado && $resultado['count'] > 0);
     }
+
+    /**
+     * Obtiene los resultados de una encuesta (VERSIÓN ADMIN).
+     * No comprueba propiedad.
+     * @param int $id_encuesta El ID de la encuesta.
+     * @return array|null|false
+     */
+    public function getResultadosAdmin($id_encuesta) {
+        
+        // --- 1. Obtener Datos de la Encuesta (SIN check de propietario) ---
+        $query_meta = "SELECT titulo, descripcion, visibilidad, estado, id_encuestador 
+                       FROM encuestas 
+                       WHERE id_encuesta = ?";
+        $stmt_meta = $this->conexion->prepare($query_meta);
+        if (!$stmt_meta) { error_log("Prepare failed (getResultadosAdmin meta): ".$this->conexion->error); return false; }
+        $stmt_meta->bind_param("i", $id_encuesta);
+        $stmt_meta->execute();
+        $meta_encuesta = $stmt_meta->get_result()->fetch_assoc();
+        $stmt_meta->close();
+
+        if (!$meta_encuesta) { return null; } // Encuesta no existe
+        
+        $resultados = [
+            'titulo' => $meta_encuesta['titulo'],
+            'visibilidad' => $meta_encuesta['visibilidad'],
+            'estado' => $meta_encuesta['estado'],
+            'resumen_participacion' => [],
+            'preguntas' => [],
+            'participantes_identificados' => [] // Añadimos este
+        ];
+
+        // --- 2. Lógica del Pie Chart ---
+        $query_pie = "SELECT SUM(CASE WHEN id_alumno IS NULL THEN 1 ELSE 0 END) AS anonimas,
+                        SUM(CASE WHEN id_alumno IS NOT NULL THEN 1 ELSE 0 END) AS identificadas
+                      FROM respuestas WHERE id_encuesta = ?";
+        $stmt_pie = $this->conexion->prepare($query_pie);
+        if (!$stmt_pie) { return false; }
+        $stmt_pie->bind_param("i", $id_encuesta); $stmt_pie->execute();
+        $resumen = $stmt_pie->get_result()->fetch_assoc(); $stmt_pie->close();
+        $resultados['resumen_participacion'] = ['respuestas_anonimas' => (int)($resumen['anonimas'] ?? 0), 'respuestas_identificadas' => (int)($resumen['identificadas'] ?? 0)];
+
+        // --- 3. Obtener Lista de Participantes (si es identificada) ---
+        if ($meta_encuesta['visibilidad'] === 'identificada') {
+            // Reutilizamos la función que ya existe
+            $resultados['participantes_identificados'] = $this->getIdentifiedParticipants($id_encuesta);
+        }
+
+        // --- 4. Lógica de Resultados por Pregunta ---
+        $query_preguntas = "SELECT id_pregunta, texto_pregunta, tipo_pregunta, orden FROM preguntas WHERE id_encuesta = ? ORDER BY orden ASC";
+        $stmt_preguntas = $this->conexion->prepare($query_preguntas);
+        if (!$stmt_preguntas) { return false; }
+        $stmt_preguntas->bind_param("i", $id_encuesta); $stmt_preguntas->execute();
+        $lista_preguntas = $stmt_preguntas->get_result()->fetch_all(MYSQLI_ASSOC); $stmt_preguntas->close();
+
+        // Preparar statements
+        $query_opciones = "SELECT id_opcion, texto_opcion, COUNT(r.id_respuesta) AS conteo FROM opciones o LEFT JOIN respuestas r ON o.id_opcion = r.id_opcion_seleccionada WHERE o.id_pregunta = ? GROUP BY o.id_opcion, o.texto_opcion ORDER BY o.id_opcion";
+        $stmt_opciones = $this->conexion->prepare($query_opciones);
+        if (!$stmt_opciones) { return false; }
+        $query_participantes = "SELECT r.id_opcion_seleccionada, u.nombre, u.apellido FROM respuestas r JOIN usuarios u ON r.id_alumno = u.id_usuario WHERE r.id_pregunta = ?";
+        $stmt_participantes = $this->conexion->prepare($query_participantes);
+        if (!$stmt_participantes) { return false; }
+        $query_abiertas = "SELECT r.texto_respuesta_abierta, u.nombre, u.apellido FROM respuestas r LEFT JOIN usuarios u ON r.id_alumno = u.id_usuario WHERE r.id_pregunta = ?";
+        $stmt_abiertas = $this->conexion->prepare($query_abiertas);
+        if (!$stmt_abiertas) { return false; }
+
+        foreach ($lista_preguntas as $pregunta) {
+            $datos_pregunta = [ 'id_pregunta' => $pregunta['id_pregunta'], 'texto_pregunta' => $pregunta['texto_pregunta'], 'tipo_pregunta' => $pregunta['tipo_pregunta'], 'resultados' => [] ];
+            if ($pregunta['tipo_pregunta'] === 'abierta') {
+                $stmt_abiertas->bind_param("i", $pregunta['id_pregunta']); $stmt_abiertas->execute();
+                $resp_abiertas_result = $stmt_abiertas->get_result();
+                if($resp_abiertas_result){
+                    $resp_abiertas = $resp_abiertas_result->fetch_all(MYSQLI_ASSOC);
+                    foreach($resp_abiertas as $resp) { $datos_pregunta['resultados'][] = [ 'texto_respuesta' => $resp['texto_respuesta_abierta'], 'participante' => $resp['nombre'] ? ($resp['nombre'] . ' ' . $resp['apellido']) : 'Anónimo' ]; }
+                }
+            } else {
+                $stmt_opciones->bind_param("i", $pregunta['id_pregunta']); $stmt_opciones->execute();
+                $opciones_result = $stmt_opciones->get_result();
+                $resultados_opciones = [];
+                if($opciones_result){
+                    $opciones = $opciones_result->fetch_all(MYSQLI_ASSOC);
+                    foreach($opciones as $opc) { $resultados_opciones[$opc['id_opcion']] = [ 'texto_opcion' => $opc['texto_opcion'], 'conteo' => (int)$opc['conteo'], 'participantes' => [] ]; }
+                    if ($meta_encuesta['visibilidad'] === 'identificada') {
+                        $stmt_participantes->bind_param("i", $pregunta['id_pregunta']); $stmt_participantes->execute();
+                        $participantes_result = $stmt_participantes->get_result();
+                        if($participantes_result){
+                            $participantes = $participantes_result->fetch_all(MYSQLI_ASSOC);
+                            foreach($participantes as $p) { if(isset($resultados_opciones[$p['id_opcion_seleccionada']])) { $resultados_opciones[$p['id_opcion_seleccionada']]['participantes'][] = $p['nombre'] . ' ' . $p['apellido']; } }
+                        }
+                    }
+                }
+                $datos_pregunta['resultados'] = array_values($resultados_opciones);
+            }
+            $resultados['preguntas'][] = $datos_pregunta;
+        }
+
+        if ($stmt_opciones) $stmt_opciones->close();
+        if ($stmt_participantes) $stmt_participantes->close();
+        if ($stmt_abiertas) $stmt_abiertas->close();
+
+        return $resultados;
+    }
     
 }
 ?>

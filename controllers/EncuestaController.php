@@ -146,43 +146,38 @@ class EncuestaController {
     }
 
     /**
-     * Obtiene los resultados de una encuesta.
+     * Obtiene los resultados de una encuesta. (Comprueba propiedad)
      * @param int $id_encuesta El ID de la encuesta.
-     * @param int $id_encuestador El ID del encuestador (de la sesión).
+     * @param int $id_encuestador_logueado El ID del usuario que solicita.
+     * @param string $rol_logueado El ROL del usuario (opcional, para chequeos futuros)
      * @return array Respuesta con estado y datos.
      */
-    public function obtenerResultados($id_encuesta, $id_encuestador) {
-        if (empty($id_encuesta) || empty($id_encuestador)) {
+    public function obtenerResultados($id_encuesta, $id_encuestador_logueado, $rol_logueado = 'encuestador') { // Añadido rol
+        if (empty($id_encuesta) || empty($id_encuestador_logueado)) {
             return ['estado' => 400, 'success' => false, 'mensaje' => 'Faltan datos requeridos.'];
+        }
+        
+        // Esta función SIEMPRE comprueba propiedad, es para encuestadores
+        $esPropietario = $this->modeloEncuesta->checkSurveyOwnership($id_encuesta, $id_encuestador_logueado);
+        if (!$esPropietario) {
+            return ['estado' => 403, 'success' => false, 'mensaje' => 'Encuesta no encontrada o no eres el propietario.'];
         }
 
         try {
-            $resultados = $this->modeloEncuesta->getResultados($id_encuesta, $id_encuestador);
+            // Pasamos el ID del propietario para la lógica interna
+            $resultados = $this->modeloEncuesta->getResultados($id_encuesta, $id_encuestador_logueado);
 
-            if ($resultados === null) {
-                // No es propietario o la encuesta no existe
-                return ['estado' => 404, 'success' => false, 'mensaje' => 'Encuesta no encontrada o no eres el propietario.'];
-            }
-            if ($resultados === false) {
-                 return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de base de datos.'];
-            }
-
-            // ¡Éxito! Devolver el JSON de resultados
-            return [
-                'estado' => 200, 
-                'success' => true, 
-                'resultados' => $resultados
-            ];
-
+            if ($resultados === null) { return ['estado' => 404, 'success' => false, 'mensaje' => 'No se encontraron resultados (null).']; }
+            if ($resultados === false) { return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de BD al obtener resultados.']; }
+            return [ 'estado' => 200, 'success' => true, 'resultados' => $resultados ];
         } catch (Exception $e) {
-            return [
-                'estado' => 500, 
-                'success' => false, 
-                'mensaje' => 'Error al procesar los resultados.',
-                'error_db' => $e->getMessage()
-            ];
+             error_log("Exception in obtenerResultados: " . $e->getMessage());
+             return [ 'estado' => 500, 'success' => false, 'mensaje' => 'Error al procesar los resultados.', 'error_db' => $e->getMessage() ];
         }
     }
+
+
+    
 
     /**
      * Obtiene la lista de encuestas públicas para los alumnos.
@@ -373,27 +368,51 @@ class EncuestaController {
         }
     }
 
-
-    /**
-     * Obtiene las respuestas de un alumno específico PARA EL ENCUESTADOR.
-     * Verifica la propiedad de la encuesta.
+/**
+     * Obtiene las respuestas de un alumno específico PARA EL ENCUESTADOR o ADMIN.
      * @param int $id_encuesta
      * @param int $id_alumno_a_ver
-     * @param int $id_encuestador_logueado
+     * @param int $id_usuario_logueado El ID del encuestador o admin
+     * @param string $rol_logueado El ROL del usuario (encuestador o administrator)
      * @return array Respuesta con estado y datos.
      */
-    public function obtenerRespuestasDeAlumno($id_encuesta, $id_alumno_a_ver, $id_encuestador_logueado) {
-        // 1. Verificar propiedad (usando la función del modelo)
-        // (¡Asegúrate de haber añadido también 'checkSurveyOwnership' al modelo!)
-        $esPropietario = $this->modeloEncuesta->checkSurveyOwnership($id_encuesta, $id_encuestador_logueado);
-        if (!$esPropietario) {
-            return ['estado' => 403, 'success' => false, 'mensaje' => 'No eres el propietario de esta encuesta.'];
+    public function obtenerRespuestasDeAlumno($id_encuesta, $id_alumno_a_ver, $id_usuario_logueado, $rol_logueado = 'encuestador') {
+        
+        // 1. Verificar propiedad O ROL DE ADMIN
+        if ($rol_logueado !== 'administrador') {
+            // Si no es admin, debe ser el propietario
+            $esPropietario = $this->modeloEncuesta->checkSurveyOwnership($id_encuesta, $id_usuario_logueado);
+            if (!$esPropietario) {
+                return ['estado' => 403, 'success' => false, 'mensaje' => 'No eres el propietario de esta encuesta.'];
+            }
         }
-
-        // 2. Obtener respuestas (reutilizando la función que ya teníamos)
-        // Pasamos los IDs al controlador (que los pasará al modelo)
-        // Usamos la función 'obtenerMisRespuestas' que ya existe en este controlador
+        // Si es admin, se salta el check de propiedad
+        
+        // 2. Obtener respuestas (reutilizando la función 'obtenerMisRespuestas')
         return $this->obtenerMisRespuestas($id_encuesta, $id_alumno_a_ver);
+    }
+
+/**
+     * Obtiene los resultados de una encuesta (VERSIÓN ADMIN).
+     * No comprueba propiedad.
+     * @param int $id_encuesta El ID de la encuesta.
+     * @return array Respuesta con estado y datos.
+     */
+    public function obtenerResultadosAdmin($id_encuesta) {
+        if (empty($id_encuesta)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'Falta ID de encuesta.'];
+        }
+        try {
+            // Llama a la nueva función del modelo
+            $resultados = $this->modeloEncuesta->getResultadosAdmin($id_encuesta); 
+
+            if ($resultados === null) { return ['estado' => 404, 'success' => false, 'mensaje' => 'Encuesta no encontrada.']; }
+            if ($resultados === false) { return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de BD al obtener resultados admin.']; }
+            return [ 'estado' => 200, 'success' => true, 'resultados' => $resultados ];
+        } catch (Exception $e) {
+             error_log("Exception in obtenerResultadosAdmin: " . $e->getMessage());
+             return [ 'estado' => 500, 'success' => false, 'mensaje' => 'Error al procesar resultados admin.', 'error_db' => $e->getMessage() ];
+        }
     }
 }
 ?>

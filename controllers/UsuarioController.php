@@ -547,5 +547,18 @@ class UsuarioController {
             return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al registrar el admin.', 'error_db' => $this->conexion->error];
         }
     }
+
+   /**
+     * Obtiene la lista de todos los encuestadores (para el Admin).
+     * @return array
+     */
+    public function listarEncuestadores() {
+        try {
+            $encuestadores = $this->modeloUsuario->getEncuestadores();
+            return ['estado' => 200, 'success' => true, 'encuestadores' => $encuestadores];
+        } catch (Exception $e) {
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al obtener la lista de encuestadores.'];
+        }
+    }
 }
 ?>

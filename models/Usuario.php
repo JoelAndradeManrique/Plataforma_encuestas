@@ -331,6 +331,24 @@ class Usuario {
         $stmt->close();
         return $success;
     }
+
+    /**
+     * Obtiene una lista de todos los usuarios con rol 'encuestador'.
+     * @return array
+     */
+    public function getEncuestadores() {
+        // Asegúrate que el ROL sea 'encuestador' (o como lo tengas en tu DB)
+        $query = "SELECT id_usuario, nombre, apellido, email FROM usuarios 
+                  WHERE rol = 'encuestador' 
+                  ORDER BY apellido, nombre";
+        $stmt = $this->conexion->prepare($query);
+        if (!$stmt) { error_log("Prepare failed (getEncuestadores): ".$this->conexion->error); return []; }
+        $stmt->execute();
+        $resultado = $stmt->get_result();
+        $encuestadores = $resultado->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $encuestadores;
+    }
 }
 
 ?>
