@@ -328,33 +328,32 @@ class EncuestaController {
 
     /**
      * Obtiene los datos completos de una encuesta para poder editarla.
-     * Verifica que sea un borrador y pertenezca al encuestador.
+     * Verifica que sea un borrador y pertenezca al usuario (A MENOS que sea admin).
      * @param int $id_encuesta El ID de la encuesta.
-     * @param int $id_encuestador El ID del encuestador (de la sesión).
+     * @param int $id_usuario El ID del usuario (de la sesión).
+     * @param string $rol El ROL del usuario (de la sesión).
      * @return array Respuesta con estado y datos.
      */
-    public function obtenerEncuestaParaEditar($id_encuesta, $id_encuestador) {
-        if (empty($id_encuesta) || empty($id_encuestador)) {
+    public function obtenerEncuestaParaEditar($id_encuesta, $id_usuario, $rol) {
+        if (empty($id_encuesta) || empty($id_usuario)) {
             return ['estado' => 400, 'success' => false, 'mensaje' => 'Faltan IDs requeridos.'];
         }
 
         try {
-            $encuesta_editable = $this->modeloEncuesta->getEditableDetails($id_encuesta, $id_encuestador);
+            // ✅ Modificamos la llamada al modelo para pasar el ROL
+            $encuesta_editable = $this->modeloEncuesta->getEditableDetails($id_encuesta, $id_usuario, $rol);
 
             if ($encuesta_editable === null) {
-                // No encontrado, no es borrador, o no es propietario
-                return ['estado' => 404, 'success' => false, 'mensaje' => 'Borrador de encuesta no encontrado, no es tuyo, o ya fue publicado.'];
+                return ['estado' => 404, 'success' => false, 'mensaje' => 'Borrador de encuesta no encontrado, no te pertenece, o ya fue publicado.'];
             }
             if ($encuesta_editable === false) {
-                 // Error de base de datos en el modelo
                  return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de base de datos al obtener los detalles.'];
             }
 
-            // ¡Éxito! Devolver el JSON con todos los datos
             return [
                 'estado' => 200,
                 'success' => true,
-                'encuesta' => $encuesta_editable // Contiene todo: encuesta, preguntas, opciones
+                'encuesta' => $encuesta_editable
             ];
 
         } catch (Exception $e) {
@@ -363,7 +362,7 @@ class EncuestaController {
                 'estado' => 500,
                 'success' => false,
                 'mensaje' => 'Error al procesar la solicitud de edición.',
-                'error_db' => $e->getMessage() // Opcional
+                'error_db' => $e->getMessage()
             ];
         }
     }
@@ -480,5 +479,116 @@ class EncuestaController {
             return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de base de datos.', 'error_db' => $e->getMessage()];
         }
     }
+
+    /**
+     * Actualiza una encuesta que está en modo "borrador".
+     * Permite al admin editar cualquier encuesta.
+     * @param int $id_encuesta ID de la encuesta a actualizar.
+     * @param array $datos Nuevos datos (titulo, descripcion, preguntas, etc.)
+     * @param int $id_usuario_logueado ID del usuario que hace la petición.
+     * @param string $rol_logueado Rol del usuario.
+     * @return array
+     */
+    public function actualizarEncuestaBorrador($id_encuesta, $datos, $id_usuario_logueado, $rol_logueado) {
+        
+        $this->conexion->begin_transaction();
+        
+        $stmt_pregunta = null;
+        $stmt_opcion = null;
+
+        try {
+            // 1. Verificar propiedad O ROL DE ADMIN
+            if ($rol_logueado !== 'administrador') {
+                // Usamos la función que SÍ existe en tu modelo
+                $esPropietario = $this->modeloEncuesta->checkSurveyOwnership($id_encuesta, $id_usuario_logueado);
+                if (!$esPropietario) {
+                    $this->conexion->rollback();
+                    return ['estado' => 403, 'success' => false, 'mensaje' => 'No eres el propietario de esta encuesta.'];
+                }
+            }
+            // Si es admin, se salta el check de propiedad
+
+            // 2. Actualizar metadatos de la encuesta
+            // Usamos la función que SÍ existe en tu modelo
+            $this->modeloEncuesta->updateSurveyMeta($id_encuesta, $datos['titulo'], $datos['descripcion'], $datos['visibilidad'], $datos['estado']);
+
+            // 3. Borrar preguntas y opciones antiguas
+            // Usamos la función que SÍ existe en tu modelo
+            $this->modeloEncuesta->deleteAllQuestionsFromSurvey($id_encuesta);
+
+            // 4. Re-insertar preguntas y opciones (Lógica copiada de tu models/Encuesta.php -> create())
+            
+            // Preparar statement de Pregunta
+            $query_pregunta = "INSERT INTO preguntas (id_encuesta, texto_pregunta, tipo_pregunta, orden) VALUES (?, ?, ?, ?)";
+            $stmt_pregunta = $this->conexion->prepare($query_pregunta);
+            if (!$stmt_pregunta) { throw new Exception("Prepare failed (pregunta): ".$this->conexion->error); }
+
+            // Preparar statement de Opción
+            $query_opcion = "INSERT INTO opciones (id_pregunta, texto_opcion, valor_escala) VALUES (?, ?, ?)";
+            $stmt_opcion = $this->conexion->prepare($query_opcion);
+            if (!$stmt_opcion) { throw new Exception("Prepare failed (opcion): ".$this->conexion->error); }
+
+
+            if (isset($datos['preguntas']) && is_array($datos['preguntas'])) {
+                foreach ($datos['preguntas'] as $index => $pregunta) {
+                    
+                    if (empty($pregunta['texto_pregunta']) || empty($pregunta['tipo_pregunta'])) {
+                        throw new Exception("Datos de pregunta incompletos en el índice $index.");
+                    }
+                    $orden = isset($pregunta['orden']) ? $pregunta['orden'] : ($index + 1);
+
+                    // Insertar la pregunta
+                    $stmt_pregunta->bind_param("issi",
+                        $id_encuesta,
+                        $pregunta['texto_pregunta'],
+                        $pregunta['tipo_pregunta'],
+                        $orden
+                    );
+                    $stmt_pregunta->execute();
+                    if ($stmt_pregunta->errno) { throw new Exception("Execute failed (pregunta $index): ".$stmt_pregunta->error); }
+                    $id_pregunta = $this->conexion->insert_id;
+                    if (!$id_pregunta) { throw new Exception("Failed to get insert ID for pregunta at index $index."); }
+
+                    // Insertar opciones
+                    if (!empty($pregunta['opciones']) && is_array($pregunta['opciones'])) {
+                        foreach ($pregunta['opciones'] as $opcion) {
+                            if (empty($opcion['texto_opcion'])) {
+                                continue; // Saltar opciones vacías
+                            }
+                            $valor = isset($opcion['valor_escala']) ? intval($opcion['valor_escala']) : null;
+                            $stmt_opcion->bind_param("isi",
+                                $id_pregunta,
+                                $opcion['texto_opcion'],
+                                $valor
+                            );
+                            $stmt_opcion->execute();
+                            if ($stmt_opcion->errno) { throw new Exception("Execute failed (opcion for pregunta $id_pregunta): ".$stmt_opcion->error); }
+                        }
+                    }
+                }
+            } else {
+                 throw new Exception("No se proporcionaron preguntas.");
+            }
+            
+            // Cerrar statements
+            if ($stmt_pregunta) $stmt_pregunta->close();
+            if ($stmt_opcion) $stmt_opcion->close();
+
+            // 5. Commit
+            $this->conexion->commit();
+            return ['estado' => 200, 'success' => true, 'mensaje' => 'Borrador actualizado con éxito.'];
+
+        } catch (Exception $e) {
+            $this->conexion->rollback();
+             // Cerrar statements si falló
+            if ($stmt_pregunta instanceof mysqli_stmt) $stmt_pregunta->close();
+            if ($stmt_opcion instanceof mysqli_stmt) $stmt_opcion->close();
+            error_log("Error en actualizarEncuestaBorrador: " . $e->getMessage());
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de base de datos al actualizar.', 'error_db' => $e->getMessage()];
+        }
+    }
+
+    
+    
 }
 ?>

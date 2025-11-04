@@ -186,11 +186,15 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                             const estadoTexto = encuesta.estado.charAt(0).toUpperCase() + encuesta.estado.slice(1);
                             let botonesAccion = '';
                             if (encuesta.estado === 'borrador') { botonesAccion = `<button class="btn-editar" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-edit"></i> Editar</button> <button class="btn-publish-lista" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-paper-plane"></i> Publicar</button>`; }
-                            else if (encuesta.estado === 'publicada') { botonesAccion = `<button class="btn-resultados" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-chart-pie"></i> Resultados</button> <button class="btn-cerrar" data-id="${encuesta.id_encuesta}" data-nuevo-estado="cerrada"><i class="fa-solid fa-lock"></i> Cerrar</button>`; }
-                            else if (encuesta.estado === 'cerrada') { botonesAccion = `<button class="btn-resultados" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-chart-pie"></i> Resultados</button> <button class="btn-cerrar" data-id="${encuesta.id_encuesta}" data-nuevo-estado="publicada" style="background-color: #28a745; color: white;"><i class="fa-solid fa-lock-open"></i> Re-Publicar</button>`; }
+                            else if (encuesta.estado === 'publicada') { botonesAccion = `<button class="btn-resultados" data-id="${encuesta.id_encuesta}" data-titulo="${encuesta.titulo}"><i class="fa-solid fa-chart-pie"></i> Resultados</button> <button class="btn-cerrar" data-id="${encuesta.id_encuesta}" data-nuevo-estado="cerrada"><i class="fa-solid fa-lock"></i> Cerrar</button>`; }
+                            else if (encuesta.estado === 'cerrada') { botonesAccion = `<button class="btn-resultados" data-id="${encuesta.id_encuesta}" data-titulo="${encuesta.titulo}"><i class="fa-solid fa-chart-pie"></i> Resultados</button> <button class="btn-cerrar" data-id="${encuesta.id_encuesta}" data-nuevo-estado="publicada" style="background-color: #28a745; color: white;"><i class="fa-solid fa-lock-open"></i> Re-Publicar</button>`; }
                             botonesAccion += ` <button class="btn-eliminar" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-trash-alt"></i> Eliminar</button>`;
                             let fechaFormateada = 'Fecha desconocida'; try { fechaFormateada = new Date(encuesta.fecha_creacion).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch(e) { console.error("Error formateando fecha", encuesta.fecha_creacion); }
-                            const encuestaHtml = `<div class="encuesta-item"><div class="encuesta-info"><h3>${encuesta.titulo || 'Encuesta sin título'}</h3><div><small>Creada: ${fechaFormateada}</small><span class="${estadoClase}">${estadoTexto}</span></div></div><div class="encuesta-acciones">${botonesAccion}</div></div>`;
+                            
+                            // Escapar HTML en el título
+                            const tituloEscapado = $('<div>').text(encuesta.titulo || 'Encuesta sin título').html();
+                            
+                            const encuestaHtml = `<div class="encuesta-item"><div class="encuesta-info"><h3>${tituloEscapado}</h3><div><small>Creada: ${fechaFormateada}</small><span class="${estadoClase}">${estadoTexto}</span></div></div><div class="encuesta-acciones">${botonesAccion}</div></div>`;
                             container.append(encuestaHtml);
                         });
                     } else { container.html(`<p style="color: red;">Error al cargar encuestas: ${response.mensaje}</p>`); }
@@ -235,7 +239,10 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                 url: `../api/obtenerResultados.php?id_encuesta=${idEncuesta}`, method: 'GET', dataType: 'json',
                 success: function(response) {
                     if (response.success && response.resultados) {
-                        const r = response.resultados; let html = `<div class="resultados-container"><div class="resultados-header"><h2>Resultados: ${r.titulo}</h2><p>Visibilidad: ${r.visibilidad} | Estado: ${r.estado}</p></div>`;
+                        const r = response.resultados; 
+                        // Escapar título
+                        const tituloEscapado = $('<div>').text(r.titulo).html();
+                        let html = `<div class="resultados-container"><div class="resultados-header"><h2>Resultados: ${tituloEscapado}</h2><p>Visibilidad: ${r.visibilidad} | Estado: ${r.estado}</p></div>`;
                         const totalRespuestas = r.resumen_participacion.respuestas_anonimas + r.resumen_participacion.respuestas_identificadas;
                         
                         html += `
@@ -273,18 +280,28 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                         if (totalRespuestas > 0 && r.preguntas && r.preguntas.length > 0) {
                             let preguntasContablesEncontradas = false;
                             r.preguntas.forEach((preg, index) => {
+                                // Escapar texto de pregunta
+                                const textoPreguntaEscapado = $('<div>').text(preg.texto_pregunta).html();
+                                
                                 if (['opcion_multiple', 'si_no', 'escala', 'seleccion_multiple'].includes(preg.tipo_pregunta)) {
                                     if (preg.resultados && preg.resultados.length > 0) {
                                         preguntasContablesEncontradas = true;
                                         const labels = []; const data = []; const backgroundColors = ['rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 159, 64, 0.6)', 'rgba(255, 99, 132, 0.6)']; const borderColors = ['rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)'];
                                         preg.resultados.forEach((res, i) => { labels.push(res.texto_opcion); data.push(res.conteo); });
-                                        const preguntaGraficoHtml = `<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${preg.texto_pregunta}</h4><div class="bar-chart-container"><canvas id="barChartPregunta${preg.id_pregunta}"></canvas></div></div>`;
+                                        const preguntaGraficoHtml = `<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${textoPreguntaEscapado}</h4><div class="bar-chart-container"><canvas id="barChartPregunta${preg.id_pregunta}"></canvas></div></div>`;
                                         preguntasGraficosContainer.append(preguntaGraficoHtml);
                                         try { const ctxBar = document.getElementById(`barChartPregunta${preg.id_pregunta}`).getContext('2d'); new Chart(ctxBar, { type: 'bar', data: { labels: labels, datasets: [{ label: '# de Respuestas', data: data, backgroundColor: backgroundColors.slice(0, data.length), borderColor: borderColors.slice(0, data.length), borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } } }); } catch (e) { console.error(`Error al crear gráfico ${preg.id_pregunta}:`, e); }
-                                    } else { preguntasGraficosContainer.append(`<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${preg.texto_pregunta}</h4><p><em>No hay respuestas para esta pregunta.</em></p></div>`); }
+                                    } else { preguntasGraficosContainer.append(`<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${textoPreguntaEscapado}</h4><p><em>No hay respuestas para esta pregunta.</em></p></div>`); }
                                 } else if (preg.tipo_pregunta === 'abierta') {
-                                    preguntasContablesEncontradas = true; let abiertaHtml = `<div class="pregunta-resultado-abierta"><h4>${index + 1}. ${preg.texto_pregunta} (Respuesta Corta)</h4>`;
-                                    if (preg.resultados && preg.resultados.length > 0) { preg.resultados.forEach(res => { abiertaHtml += `<div class="respuesta-abierta">"${res.texto_respuesta}" <span>- ${res.participante || 'Anónimo'}</span></div>`; }); } else { abiertaHtml += `<p><em>No hay respuestas abiertas.</em></p>`; }
+                                    preguntasContablesEncontradas = true; let abiertaHtml = `<div class="pregunta-resultado-abierta"><h4>${index + 1}. ${textoPreguntaEscapado} (Respuesta Corta)</h4>`;
+                                    if (preg.resultados && preg.resultados.length > 0) { 
+                                        preg.resultados.forEach(res => { 
+                                            // Escapar respuesta y participante
+                                            const textoRespEscapado = $('<div>').text(res.texto_respuesta).html();
+                                            const participanteEscapado = $('<div>').text(res.participante || 'Anónimo').html();
+                                            abiertaHtml += `<div class="respuesta-abierta">"${textoRespEscapado}" <span>- ${participanteEscapado}</span></div>`; 
+                                        }); 
+                                    } else { abiertaHtml += `<p><em>No hay respuestas abiertas.</em></p>`; }
                                     abiertaHtml += `</div>`; preguntasGraficosContainer.append(abiertaHtml);
                                 }
                             });
@@ -295,7 +312,12 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                         if (r.visibilidad === 'identificada' && r.participantes_identificados && r.participantes_identificados.length > 0) {
                             $('.tab-button-res[data-tab="participantes"]').show();
                             const participantesContainer = $('#participantes-lista-container'); let listaHtml = '<ul class="lista-participantes">';
-                            r.participantes_identificados.forEach(p => { listaHtml += `<li><a href="#" class="participante-link" data-id-encuesta="${idEncuesta}" data-id-alumno="${p.id_usuario}" data-nombre-alumno="${p.apellido}, ${p.nombre}"><i class="fa-solid fa-user"></i> ${p.apellido}, ${p.nombre}</a></li>`; });
+                            r.participantes_identificados.forEach(p => { 
+                                // Escapar nombre
+                                const nombreCompleto = `${p.apellido}, ${p.nombre}`;
+                                const nombreEscapado = $('<div>').text(nombreCompleto).html();
+                                listaHtml += `<li><a href="#" class="participante-link" data-id-encuesta="${idEncuesta}" data-id-alumno="${p.id_usuario}" data-nombre-alumno="${nombreEscapado}"><i class="fa-solid fa-user"></i> ${nombreEscapado}</a></li>`; 
+                            });
                             listaHtml += '</ul>'; participantesContainer.html(listaHtml);
                         } else {
                             $('.tab-button-res[data-tab="participantes"]').hide();
@@ -308,7 +330,7 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
         }
 
          // 4. Cargar Formulario para EDITAR Borrador
-        function cargarFormEditar(idEncuesta) {
+         function cargarFormEditar(idEncuesta) {
             activarTab(null);
             $('#back-button-container').show(); // ✅ Mostrar botón "Atrás"
             const container = $('#dashboard-content-container');
@@ -321,7 +343,12 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                     if (response.success && response.encuesta) {
                         const encuesta = response.encuesta;
                         $('#publish-button-placeholder').html(`<button type="submit" form="form-editar-encuesta" class="btn-publish" style="background-color: #ffc107; color: #333;"><i class="fa-solid fa-save"></i> Actualizar Borrador</button>`);
-                        let formHtml = `<form id="form-editar-encuesta" class="form-builder-container"><input type="hidden" name="id_encuesta" value="${encuesta.id_encuesta}"><div class="survey-header-editor"><input type="text" id="titulo" name="titulo" placeholder="Título del formulario" value="${encuesta.titulo || ''}" required><textarea id="descripcion" name="descripcion" placeholder="Descripción del formulario">${encuesta.descripcion || ''}</textarea><div style="display: flex; gap: 20px; margin-top: 15px; flex-wrap: wrap;"><div class="form-group" style="flex: 1; min-width: 150px;"><label style="font-size: 0.9rem; color: #555;">Visibilidad:</label><select id="visibilidad" name="visibilidad" style="font-size: 0.9rem; padding: 5px;"><option value="identificada" ${encuesta.visibilidad === 'identificada' ? 'selected' : ''}>Identificada</option><option value="anonima" ${encuesta.visibilidad === 'anonima' ? 'selected' : ''}>Anónima</option></select></div><div class="form-group" style="flex: 1; min-width: 150px;"><label style="font-size: 0.9rem; color: #555;">Estado:</label><input type="text" value="Borrador" style="font-size: 0.9rem; padding: 5px; background: #eee;" disabled><input type="hidden" name="estado" value="borrador"></div></div></div><div id="preguntas-container"></div><button type="button" id="btn-add-pregunta" class="btn-add-pregunta"><i class="fa-solid fa-plus"></i> Añadir Pregunta</button></form>`;
+                        
+                        // Escapar valores
+                        const tituloEscapado = $('<div>').text(encuesta.titulo || '').html();
+                        const descEscapada = $('<div>').text(encuesta.descripcion || '').html();
+
+                        let formHtml = `<form id="form-editar-encuesta" class="form-builder-container"><input type="hidden" name="id_encuesta" value="${encuesta.id_encuesta}"><div class="survey-header-editor"><input type="text" id="titulo" name="titulo" placeholder="Título del formulario" value="${tituloEscapado}" required><textarea id="descripcion" name="descripcion" placeholder="Descripción del formulario">${descEscapada}</textarea><div style="display: flex; gap: 20px; margin-top: 15px; flex-wrap: wrap;"><div class="form-group" style="flex: 1; min-width: 150px;"><label style="font-size: 0.9rem; color: #555;">Visibilidad:</label><select id="visibilidad" name="visibilidad" style="font-size: 0.9rem; padding: 5px;"><option value="identificada" ${encuesta.visibilidad === 'identificada' ? 'selected' : ''}>Identificada</option><option value="anonima" ${encuesta.visibilidad === 'anonima' ? 'selected' : ''}>Anónima</option></select></div><div class="form-group" style="flex: 1; min-width: 150px;"><label style="font-size: 0.9rem; color: #555;">Estado:</label><input type="text" value="Borrador" style="font-size: 0.9rem; padding: 5px; background: #eee;" disabled><input type="hidden" name="estado" value="borrador"></div></div></div><div id="preguntas-container"></div><button type="button" id="btn-add-pregunta" class="btn-add-pregunta"><i class="fa-solid fa-plus"></i> Añadir Pregunta</button></form>`;
                         container.html(formHtml);
                         preguntaIndex = 0;
                         if (encuesta.preguntas && encuesta.preguntas.length > 0) {
@@ -343,6 +370,7 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                         <input type="text" name="preguntas[${index}][texto_pregunta]" placeholder="Pregunta sin título" required>
                         <select name="preguntas[${index}][tipo_pregunta]" class="tipo-pregunta-selector">
                             <option value="opcion_multiple">Opción Múltiple</option>
+                            <option value="seleccion_multiple">Selección Múltiple</option>
                             <option value="abierta">Respuesta Corta</option>
                             <option value="si_no">Verdadero / Falso</option>
                             <option value="escala">Escala (1-5)</option>
@@ -358,36 +386,45 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
         }
         function agregarPreguntaConDatos(pregunta) {
             const index = preguntaIndex++;
-             const tipoOptions = ['opcion_multiple', 'abierta', 'si_no', 'escala', ...(pregunta.tipo_pregunta === 'seleccion_multiple' ? [{value: 'seleccion_multiple', text: 'Selección Múltiple'}] : [])]
-                .map(tipo => {
-                    let texto = typeof tipo === 'object' ? tipo.text : tipo.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    let value = typeof tipo === 'object' ? tipo.value : tipo;
-                    if (value === 'si_no') texto = 'Verdadero / Falso';
-                    return `<option value="${value}" ${pregunta.tipo_pregunta === value ? 'selected' : ''}>${texto}</option>`;
-                }).join('');
-            const preguntaHtml = `<div class="pregunta-block" data-index="${index}"><div class="pregunta-header"><input type="text" name="preguntas[${index}][texto_pregunta]" placeholder="Pregunta sin título" value="${pregunta.texto_pregunta || ''}" required><select name="preguntas[${index}][tipo_pregunta]" class="tipo-pregunta-selector">${tipoOptions}</select></div><div class="opciones-container"></div><div class="pregunta-footer"><button type="button" class="btn-delete-pregunta" title="Eliminar Pregunta"><i class="fa-solid fa-trash-alt"></i></button></div></div>`;
+             const tipoOptions = [
+                {value: 'opcion_multiple', text: 'Opción Múltiple'},
+                {value: 'seleccion_multiple', text: 'Selección Múltiple'},
+                {value: 'abierta', text: 'Respuesta Corta'},
+                {value: 'si_no', text: 'Verdadero / Falso'},
+                {value: 'escala', text: 'Escala (1-5)'}
+            ].map(tipo => {
+                return `<option value="${tipo.value}" ${pregunta.tipo_pregunta === tipo.value ? 'selected' : ''}>${tipo.text}</option>`;
+            }).join('');
+            
+            // Escapar texto
+            const textoPreguntaEscapado = $('<div>').text(pregunta.texto_pregunta || '').attr('value');
+            
+            const preguntaHtml = `<div class="pregunta-block" data-index="${index}"><div class="pregunta-header"><input type="text" name="preguntas[${index}][texto_pregunta]" placeholder="Pregunta sin título" value="${textoPreguntaEscapado}" required><select name="preguntas[${index}][tipo_pregunta]" class="tipo-pregunta-selector">${tipoOptions}</select></div><div class="opciones-container"></div><div class="pregunta-footer"><button type="button" class="btn-delete-pregunta" title="Eliminar Pregunta"><i class="fa-solid fa-trash-alt"></i></button></div></div>`;
             $('#preguntas-container').append(preguntaHtml);
             const $containerOpciones = $(`.pregunta-block[data-index="${index}"] .opciones-container`);
+            
             if (pregunta.opciones && pregunta.opciones.length > 0) {
-                 if (pregunta.tipo_pregunta === 'opcion_multiple' || pregunta.tipo_pregunta === 'seleccion_multiple') {
+                if (pregunta.tipo_pregunta === 'opcion_multiple' || pregunta.tipo_pregunta === 'seleccion_multiple') {
                     pregunta.opciones.forEach((opcion, opIndex) => { agregarOpcionConDatos($containerOpciones, index, opIndex, opcion.texto_opcion, pregunta.tipo_pregunta); });
-                     $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
+                    $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
                 }
             } else if (pregunta.tipo_pregunta === 'opcion_multiple' || pregunta.tipo_pregunta === 'seleccion_multiple') {
-                 agregarOpcion($containerOpciones, index, 0); $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
+                agregarOpcion($containerOpciones, index, 0); $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
             }
-            $(`.pregunta-block[data-index="${index}"] .tipo-pregunta-selector`).trigger('change');
+             $(`.pregunta-block[data-index="${index}"] .tipo-pregunta-selector`).trigger('change');
         }
         function agregarOpcion(container, indexPregunta, opcionIndex) {
-             const tipoPregunta = container.closest('.pregunta-block').find('.tipo-pregunta-selector').val();
-             const iconClass = (tipoPregunta === 'seleccion_multiple') ? 'far fa-square' : 'far fa-circle';
+            const tipoPregunta = container.closest('.pregunta-block').find('.tipo-pregunta-selector').val();
+            const iconClass = (tipoPregunta === 'seleccion_multiple') ? 'far fa-square' : 'far fa-circle';
             const opcionHtml = `<div class="opcion-item"><i class="${iconClass}" style="color: #ccc;"></i><input type="text" name="preguntas[${indexPregunta}][opciones][${opcionIndex}][texto_opcion]" placeholder="Opción ${opcionIndex + 1}" required><button type="button" class="btn-delete-opcion" title="Eliminar Opción">&times;</button></div>`;
             container.append(opcionHtml);
             container.find('.opcion-item:last-child input').focus();
         }
         function agregarOpcionConDatos(container, indexPregunta, opcionIndex, textoOpcion, tipoPregunta) {
             const iconClass = (tipoPregunta === 'seleccion_multiple') ? 'far fa-square' : 'far fa-circle';
-            const opcionHtml = `<div class="opcion-item"><i class="${iconClass}" style="color: #ccc;"></i><input type="text" name="preguntas[${indexPregunta}][opciones][${opcionIndex}][texto_opcion]" placeholder="Opción ${opcionIndex + 1}" value="${textoOpcion || ''}" required><button type="button" class="btn-delete-opcion" title="Eliminar Opción">&times;</button></div>`;
+            // Escapar texto
+            const textoOpcionEscapado = $('<div>').text(textoOpcion || '').attr('value');
+            const opcionHtml = `<div class="opcion-item"><i class="${iconClass}" style="color: #ccc;"></i><input type="text" name="preguntas[${indexPregunta}][opciones][${opcionIndex}][texto_opcion]" placeholder="Opción ${opcionIndex + 1}" value="${textoOpcionEscapado}" required><button type="button" class="btn-delete-opcion" title="Eliminar Opción">&times;</button></div>`;
             container.append(opcionHtml);
         }
 
@@ -397,7 +434,6 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
 
             // Pop-up contraseña temporal
             <?php if ($esTemporal): ?>
-            // (Código pop-up sin cambios)
             const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
             Swal.fire({ title: 'Cambio de Contraseña Requerido', text: 'Por seguridad, debes establecer una nueva contraseña.', icon: 'warning', allowOutsideClick: false, allowEscapeKey: false, html: `<div style="text-align: left; margin-top: 15px;"><label for="swal-pass1" class="swal2-label">Nueva Contraseña</label><input type="password" id="swal-pass1" class="swal2-input" placeholder="Nueva contraseña"><label for="swal-pass2" class="swal2-label" style="margin-top: 10px;">Confirmar Contraseña</label><input type="password" id="swal-pass2" class="swal2-input" placeholder="Confirmar contraseña"><div id="swal-hint" style="font-size: 0.8em; color: #666; margin-top: 10px;">*Mínimo 8 carac, 1 especial (ej. !@#$) y terminar con AL</div></div>`, confirmButtonText: 'Guardar Contraseña', showLoaderOnConfirm: true,
                 preConfirm: () => { const p1 = $('#swal-pass1').val(); const p2 = $('#swal-pass2').val(); if (!p1 || !p2) { Swal.showValidationMessage('Campos obligatorios.'); return false; } if (p1 !== p2) { Swal.showValidationMessage('Contraseñas no coinciden.'); return false; } if (p1.length < 8 || !p1.toLowerCase().endsWith('al') || !specialCharRegex.test(p1)) { Swal.showValidationMessage('Contraseña no cumple requisitos.'); return false; } return { nueva_contrasena: p1, confirmar_contrasena: p2 }; }
@@ -407,18 +443,8 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
             // --- Navegación por Pestañas (Cabecera) ---
             $('#btn-tab-mis-encuestas').on('click', (e) => { e.preventDefault(); cargarMisEncuestas(); });
             $('#btn-tab-crear').on('click', (e) => { e.preventDefault(); cargarFormCrear(); });
-            
-            // --- ✅ NUEVO: Clic en "Mi Panel" (Logo) ---
-            $('.header-logo').on('click', function(e) {
-                e.preventDefault();
-                cargarMisEncuestas(); // Siempre vuelve a la lista principal
-            });
-
-            // --- ✅ NUEVO: Clic en Botón "Atrás" ---
-            $('#back-button-container').on('click', '#btn-back-to-list', function(e) {
-                e.preventDefault();
-                cargarMisEncuestas(); // Siempre vuelve a la lista principal
-            });
+            $('.header-logo').on('click', function(e) { e.preventDefault(); cargarMisEncuestas(); });
+            $('#back-button-container').on('click', '#btn-back-to-list', function(e) { e.preventDefault(); cargarMisEncuestas(); });
 
 
             // --- Eventos del Form Builder ---
@@ -435,12 +461,10 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
 
             // --- Evento para Pestañas de Resultados ---
             $('#dashboard-content-container').on('click', '.tab-buttons .tab-button-res', function(e) {
-                e.preventDefault();
-                const tabId = $(this).data('tab');
+                e.preventDefault(); const tabId = $(this).data('tab');
                 $(this).closest('.tab-buttons').find('.tab-button-res').removeClass('active');
                 $(this).closest('.tabs-container-resultados').find('.tab-pane-res').removeClass('active');
-                $(this).addClass('active');
-                $(`#tab-${tabId}`).addClass('active');
+                $(this).addClass('active'); $(`#tab-${tabId}`).addClass('active');
             });
             
             // --- Evento para Link de Participante (en Resultados) ---
@@ -454,8 +478,8 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
 
             // --- Delegación botones Mis Encuestas ---
             $('#dashboard-content-container').on('click', '.btn-resultados', function() { cargarResultados($(this).data('id')); });
-            $('#dashboard-content-container').on('click', '.btn-eliminar', function() { const id = $(this).data('id'); Swal.fire({title: '¿Eliminar?', text: "Archivar encuesta.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', confirmButtonText: 'Sí', showLoaderOnConfirm: true, preConfirm: () => $.ajax({ url: '../api/eliminarEncuesta.php', method: 'POST', contentType:'application/json', data: JSON.stringify({id_encuesta: id})}).catch(e=>Swal.showValidationMessage(`Error: ${e.statusText||'?'}`)), allowOutsideClick:()=>!Swal.isLoading() }).then((r) => { if(r.isConfirmed&&r.value&&r.value.success) { Toast.fire({icon:'success',title:'Encuesta eliminada.'}); cargarMisEncuestas(); } else if(r.isConfirmed) Swal.fire('Error', r.value.mensaje||'?', 'error'); }); });
-            $('#dashboard-content-container').on('click', '.btn-publish-lista', function() { const id = $(this).data('id'); Swal.fire({ title: '¿Publicar?', text: "No podrás editarla después.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#28a745', confirmButtonText: 'Sí', showLoaderOnConfirm: true, preConfirm: () => $.ajax({ url: '../api/actualizarEstadoEncuesta.php', method: 'POST', contentType:'application/json', data: JSON.stringify({id_encuesta: id, nuevo_estado:'publicada'})}).catch(e=>Swal.showValidationMessage(`Error: ${e.statusText||'?'}`)), allowOutsideClick:()=>!Swal.isLoading() }).then((r) => { if(r.isConfirmed&&r.value&&r.value.success) { Toast.fire({icon:'success',title:'Encuesta publicada.'}); cargarMisEncuestas(); } else if(r.isConfirmed) Swal.fire('Error', r.value.mensaje||'?', 'error'); }); });
+            $('#dashboard-content-container').on('click', '.btn-eliminar', function() { const id = $(this).data('id'); Swal.fire({title: '¿Eliminar?', text: "Esto archivará la encuesta, pero podrás recuperarla.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', confirmButtonText: 'Sí, archivar', showLoaderOnConfirm: true, preConfirm: () => $.ajax({ url: '../api/eliminarEncuesta.php', method: 'POST', contentType:'application/json', data: JSON.stringify({id_encuesta: id})}).catch(e=>Swal.showValidationMessage(`Error: ${e.statusText||'?'}`)), allowOutsideClick:()=>!Swal.isLoading() }).then((r) => { if(r.isConfirmed&&r.value&&r.value.success) { Toast.fire({icon:'success',title:'Encuesta archivada.'}); cargarMisEncuestas(); } else if(r.isConfirmed) Swal.fire('Error', r.value.mensaje||'?', 'error'); }); });
+            $('#dashboard-content-container').on('click', '.btn-publish-lista', function() { const id = $(this).data('id'); Swal.fire({ title: '¿Publicar?', text: "No podrás editarla después.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#28a745', confirmButtonText: 'Sí, publicar', showLoaderOnConfirm: true, preConfirm: () => $.ajax({ url: '../api/actualizarEstadoEncuesta.php', method: 'POST', contentType:'application/json', data: JSON.stringify({id_encuesta: id, nuevo_estado:'publicada'})}).catch(e=>Swal.showValidationMessage(`Error: ${e.statusText||'?'}`)), allowOutsideClick:()=>!Swal.isLoading() }).then((r) => { if(r.isConfirmed&&r.value&&r.value.success) { Toast.fire({icon:'success',title:'Encuesta publicada.'}); cargarMisEncuestas(); } else if(r.isConfirmed) Swal.fire('Error', r.value.mensaje||'?', 'error'); }); });
             $('#dashboard-content-container').on('click', '.btn-editar', function() { cargarFormEditar($(this).data('id')); });
             $('#dashboard-content-container').on('click', '.btn-cerrar', function() { const id = $(this).data('id'); const ne = $(this).data('nuevo-estado'); const $b = $(this).prop('disabled',true); $.ajax({ url: '../api/actualizarEstadoEncuesta.php', method: 'POST', contentType:'application/json', data: JSON.stringify({id_encuesta: id, nuevo_estado: ne}), success: (r)=>{ if(r.success) { Toast.fire({icon:'success',title:`Encuesta ${ne}.`}); cargarMisEncuestas(); } else { Toast.fire({icon:'error',title:r.mensaje}); $b.prop('disabled',false); }}, error: ()=>{ Toast.fire({icon:'error',title:'Error conexión.'}); $b.prop('disabled',false); } }); });
 
@@ -465,23 +489,44 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                 if (!datosEncuesta.titulo) { Swal.fire('Error', 'Título obligatorio.', 'error'); $('#titulo').focus(); return; }
                 $('.pregunta-block').each(function(index) { const block = $(this); const textoPregunta = block.find('input[name*="[texto_pregunta]"]').val().trim(); const tipoPregunta = block.find('select[name*="[tipo_pregunta]"]').val(); if (!textoPregunta) { console.warn(`Pregunta ${index+1} ignorada.`); return; } const preguntaData = { texto_pregunta: textoPregunta, tipo_pregunta: tipoPregunta, orden: index + 1, opciones: [] }; block.find('.opcion-item input[type="text"]').each(function() { const textoOpcion = $(this).val().trim(); if (!$(this).prop('disabled') && textoOpcion !== "") { preguntaData.opciones.push({ texto_opcion: textoOpcion }); } }); if (tipoPregunta === 'si_no') { preguntaData.opciones.push({texto_opcion:'Verdadero'}); preguntaData.opciones.push({texto_opcion:'Falso'}); } else if (tipoPregunta === 'escala') { preguntaData.opciones.push({texto_opcion:'1', valor_escala: 1}); preguntaData.opciones.push({texto_opcion:'2', valor_escala: 2}); preguntaData.opciones.push({texto_opcion:'3', valor_escala: 3}); preguntaData.opciones.push({texto_opcion:'4', valor_escala: 4}); preguntaData.opciones.push({texto_opcion:'5', valor_escala: 5}); } datosEncuesta.preguntas.push(preguntaData); });
                 if (datosEncuesta.preguntas.length === 0) { Swal.fire('Error', 'Añade al menos una pregunta válida.', 'error'); return; }
-                const saveBtn = $('.btn-publish'); saveBtn.prop('disabled',true).html('<i class="fa-solid fa-spinner fa-spin"></i> Guardando...'); console.log("Enviando:", JSON.stringify(datosEncuesta));
+                const saveBtn = $('#publish-button-placeholder .btn-publish'); saveBtn.prop('disabled',true).html('<i class="fa-solid fa-spinner fa-spin"></i> Guardando...');
                 $.ajax({ url: '../api/crearEncuesta.php', method: 'POST', contentType: 'application/json', data: JSON.stringify(datosEncuesta),
                     success: function(res) { if(res.success) { Swal.fire('¡Guardado!', res.mensaje||'Ok.', 'success'); cargarMisEncuestas(); } else { Swal.fire('Error al guardar', res.mensaje||'Ocurrió un error.', 'error'); saveBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Guardar Encuesta'); } },
                     error: function(jqXHR) { console.error("Error AJAX crear:", jqXHR.responseText); let msg='Error conexión.'; if(jqXHR.responseJSON&&jqXHR.responseJSON.mensaje){msg=jqXHR.responseJSON.mensaje;}else if(jqXHR.status===500){msg='Error servidor.';} Swal.fire('Error', msg, 'error'); saveBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Guardar Encuesta'); }
                 });
             });
 
-             // --- Submit del Formulario EDITAR Encuesta ---
+             // --- ✅ Submit del Formulario EDITAR Encuesta (AHORA ACTIVADO) ---
              $('#dashboard-content-container').on('submit', '#form-editar-encuesta', function(e) {
                 e.preventDefault();
                 const datosActualizados = { id_encuesta: $(this).find('input[name="id_encuesta"]').val(), titulo: $('#titulo').val().trim(), descripcion: $('#descripcion').val().trim(), visibilidad: $('#visibilidad').val(), estado: 'borrador', preguntas: [] };
-                 if (!datosActualizados.titulo) { Swal.fire('Error', 'Título obligatorio.', 'error'); $('#titulo').focus(); return; }
-                 $('.pregunta-block').each(function(index) { const block = $(this); const textoPregunta = block.find('input[name*="[texto_pregunta]"]').val().trim(); const tipoPregunta = block.find('select[name*="[tipo_pregunta]"]').val(); if (!textoPregunta) return; const preguntaData = { texto_pregunta: textoPregunta, tipo_pregunta: tipoPregunta, orden: index + 1, opciones: [] }; block.find('.opcion-item input[type="text"]').each(function() { const textoOpcion = $(this).val().trim(); if (!$(this).prop('disabled') && textoOpcion !== "") { preguntaData.opciones.push({ texto_opcion: textoOpcion }); } }); if (tipoPregunta === 'si_no') { preguntaData.opciones.push({texto_opcion:'Verdadero'}); preguntaData.opciones.push({texto_opcion:'Falso'}); } else if (tipoPregunta === 'escala') { preguntaData.opciones.push({texto_opcion:'1', valor_escala: 1}); preguntaData.opciones.push({texto_opcion:'2', valor_escala: 2}); preguntaData.opciones.push({texto_opcion:'3', valor_escala: 3}); preguntaData.opciones.push({texto_opcion:'4', valor_escala: 4}); preguntaData.opciones.push({texto_opcion:'5', valor_escala: 5}); } datosActualizados.preguntas.push(preguntaData); });
-                 if (datosActualizados.preguntas.length === 0) { Swal.fire('Error', 'Añade al menos una pregunta válida.', 'error'); return; }
-                 const updateBtn = $('.btn-publish'); updateBtn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Actualizando...'); console.log("Enviando actualización:", JSON.stringify(datosActualizados));
-                 Swal.fire('Pendiente', 'La API para actualizar el borrador aún no está implementada.', 'info').then(() => { updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); });
-                 /* $.ajax({ url: '../api/actualizarEncuestaBorrador.php', // ¡¡API PENDIENTE!! method: 'POST', contentType: 'application/json', data: JSON.stringify(datosActualizados), success: function(res) { if (res.success) { Swal.fire('¡Actualizado!', 'Borrador guardado.', 'success'); cargarMisEncuestas(); } else { Swal.fire('Error', res.mensaje, 'error'); updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); } }, error: function() { Swal.fire('Error', 'Conexión fallida.', 'error'); updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); } }); */
+                if (!datosActualizados.titulo) { Swal.fire('Error', 'Título obligatorio.', 'error'); $('#titulo').focus(); return; }
+                $('.pregunta-block').each(function(index) { const block = $(this); const textoPregunta = block.find('input[name*="[texto_pregunta]"]').val().trim(); const tipoPregunta = block.find('select[name*="[tipo_pregunta]"]').val(); if (!textoPregunta) return; const preguntaData = { texto_pregunta: textoPregunta, tipo_pregunta: tipoPregunta, orden: index + 1, opciones: [] }; block.find('.opcion-item input[type="text"]').each(function() { const textoOpcion = $(this).val().trim(); if (!$(this).prop('disabled') && textoOpcion !== "") { preguntaData.opciones.push({ texto_opcion: textoOpcion }); } }); if (tipoPregunta === 'si_no') { preguntaData.opciones.push({texto_opcion:'Verdadero'}); preguntaData.opciones.push({texto_opcion:'Falso'}); } else if (tipoPregunta === 'escala') { preguntaData.opciones.push({texto_opcion:'1', valor_escala: 1}); preguntaData.opciones.push({texto_opcion:'2', valor_escala: 2}); preguntaData.opciones.push({texto_opcion:'3', valor_escala: 3}); preguntaData.opciones.push({texto_opcion:'4', valor_escala: 4}); preguntaData.opciones.push({texto_opcion:'5', valor_escala: 5}); } datosActualizados.preguntas.push(preguntaData); });
+                if (datosActualizados.preguntas.length === 0) { Swal.fire('Error', 'Añade al menos una pregunta válida.', 'error'); return; }
+                
+                const updateBtn = $('#publish-button-placeholder .btn-publish'); 
+                updateBtn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Actualizando...'); 
+                console.log("Enviando actualización:", JSON.stringify(datosActualizados));
+                
+                $.ajax({ 
+                    url: '../api/actualizarEncuestaBorrador.php', // ¡API AHORA EXISTE!
+                    method: 'POST', 
+                    contentType: 'application/json', 
+                    data: JSON.stringify(datosActualizados), 
+                    success: function(res) { 
+                        if (res.success) { 
+                            Swal.fire('¡Actualizado!', 'Borrador guardado.', 'success'); 
+                            cargarMisEncuestas(); 
+                        } else { 
+                            Swal.fire('Error', res.mensaje, 'error'); 
+                            updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); 
+                        } 
+                    }, 
+                    error: function() { 
+                        Swal.fire('Error', 'Conexión fallida.', 'error'); 
+                        updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); 
+                    } 
+                });
             });
 
             // --- Función Auxiliar para Modal de Respuestas de Alumno ---
@@ -497,67 +542,61 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                     method: 'GET',
                     dataType: 'json',
                     success: function(response) {
-                        // El backend ahora devuelve la ESTRUCTURA de la encuesta + respuestas
                         if (response.success && response.respuestas_alumno && Array.isArray(response.respuestas_alumno)) {
-                            let html = '<div class="swal-form-respuestas">'; // Contenedor scrolleable
+                            let html = '<div class="swal-form-respuestas">'; 
                             
                             response.respuestas_alumno.forEach(pregunta => {
-                                html += `<div class="swal-pregunta-item"><h4>${pregunta.texto_pregunta}</h4>`;
+                                // Escapar HTML
+                                const textoPreguntaEscapado = $('<div>').text(pregunta.texto_pregunta).html();
+                                html += `<div class="swal-pregunta-item"><h4>${textoPreguntaEscapado}</h4>`;
 
-                                const respuesta = pregunta.respuesta_alumno; // { opciones_seleccionadas: [id], texto_respuesta_abierta: "..." }
+                                const respuesta = pregunta.respuesta_alumno;
                                 
-                                // Renderizar según el tipo
                                 if (pregunta.tipo_pregunta === 'abierta') {
                                     let texto = '<em>(No respondió)</em>';
                                     if(respuesta && respuesta.texto_respuesta_abierta) {
-                                        // Escapar HTML en la respuesta del usuario para seguridad
                                         texto = $('<div>').text(respuesta.texto_respuesta_abierta).html();
                                     }
                                     html += `<div class="swal-respuesta-abierta-display">${texto}</div>`;
                                 } 
-                                // Tipos con opciones
                                 else if (pregunta.opciones && pregunta.opciones.length > 0) {
                                     
                                     pregunta.opciones.forEach(opcion => {
                                         let esSeleccionada = false;
                                         if (respuesta && respuesta.opciones_seleccionadas) {
-                                            // .includes() funciona porque convertimos los IDs a (int) en el modelo
                                             esSeleccionada = respuesta.opciones_seleccionadas.includes(opcion.id_opcion);
                                         }
                                         
-                                        // Determinar icono
-                                        let iconClass = 'fa-regular fa-circle'; // Radio no seleccionado
+                                        let iconClass = 'fa-regular fa-circle'; 
                                         if (pregunta.tipo_pregunta === 'seleccion_multiple') {
-                                            iconClass = 'fa-regular fa-square'; // Checkbox no seleccionado
+                                            iconClass = 'fa-regular fa-square'; 
                                         }
                                         if (esSeleccionada) {
                                             iconClass = (pregunta.tipo_pregunta === 'seleccion_multiple') ? 'fa-solid fa-square-check' : 'fa-solid fa-check-circle';
                                         }
 
-                                        // Escapar HTML en el texto de la opción
                                         const textoOpcion = $('<div>').text(opcion.texto_opcion).html();
 
                                         if (esSeleccionada) {
                                             html += `<div class="swal-opcion-item selected"><i class="${iconClass}"></i> ${textoOpcion}</div>`;
                                         } else {
-                                            // Mostrar las otras opciones pero deshabilitadas
                                             html += `<div class="swal-opcion-item"><i class="${iconClass}"></i> ${textoOpcion}</div>`;
                                         }
                                     });
                                 } else {
-                                     html += `<p><em>Esta pregunta no tenía opciones.</em></p>`;
+                                    html += `<p><em>Esta pregunta no tenía opciones.</em></p>`;
                                 }
-                                html += `</div>`; // Cierre swal-pregunta-item
+                                html += `</div>`;
                             });
-                            html += "</div>"; // Cierre swal-form-respuestas
+                            html += "</div>"; 
 
                             Swal.update({
-                               title: `📋 Respuestas de ${nombreAlumno}`,
-                               html: html,
-                               icon: undefined,
-                               width: '700px', // Modal más ancho
-                               showConfirmButton: true,
-                               confirmButtonText: "Cerrar"
+                                title: `📋 Respuestas de ${nombreAlumno}`,
+                                html: html,
+                                icon: undefined,
+                                width: '700px',
+                                showConfirmButton: true,
+                                confirmButtonText: "Cerrar"
                             });
                         } else {
                             Swal.fire("Error", response.mensaje || "No se pudieron cargar las respuestas.", "warning");

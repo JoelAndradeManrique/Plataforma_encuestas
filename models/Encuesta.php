@@ -638,27 +638,43 @@ class Encuesta {
         return $encuestas;
     }
 
-    /**
+   /**
      * OBTIENE DETALLES COMPLETOS PARA EDITAR UN BORRADOR
      * Obtiene todos los datos de una encuesta (incluyendo preguntas y opciones)
-     * si pertenece al encuestador y está en estado 'borrador'.
+     * si pertenece al encuestador Y está en estado 'borrador'.
+     * SI EL ROL ES ADMIN, SE SALTA EL CHECK DE PROPIETARIO.
      * @param int $id_encuesta El ID de la encuesta.
-     * @param int $id_encuestador El ID del propietario (desde la sesión).
+     * @param int $id_usuario El ID del propietario (desde la sesión).
+     * @param string $rol El ROL del usuario (desde la sesión).
      * @return array|null|false Array con datos si es válido, null si no cumple criterios, false si error DB.
      */
-    public function getEditableDetails($id_encuesta, $id_encuestador) {
+    public function getEditableDetails($id_encuesta, $id_usuario, $rol) {
         // 1. Obtener la encuesta y verificar propiedad y estado 'borrador'
         $query_encuesta = "SELECT id_encuesta, titulo, descripcion, visibilidad, estado
                            FROM encuestas
-                           WHERE id_encuesta = ? AND id_encuestador = ? AND estado = 'borrador'";
+                           WHERE id_encuesta = ? AND estado = 'borrador'";
+        
+        // ✅ LÓGICA DE BYPASS PARA ADMIN
+        if ($rol !== 'administrador') {
+            // Si NO es admin, forzamos que sea el propietario
+            $query_encuesta .= " AND id_encuestador = ?";
+        }
+
         $stmt_encuesta = $this->conexion->prepare($query_encuesta);
         if (!$stmt_encuesta) { error_log("Prepare failed (getEditable encuesta): ".$this->conexion->error); return false; }
-        $stmt_encuesta->bind_param("ii", $id_encuesta, $id_encuestador);
+
+        if ($rol !== 'administrador') {
+            $stmt_encuesta->bind_param("ii", $id_encuesta, $id_usuario);
+        } else {
+            // Si es admin, solo bindea el id_encuesta
+            $stmt_encuesta->bind_param("i", $id_encuesta);
+        }
+        
         $stmt_encuesta->execute();
         $encuesta = $stmt_encuesta->get_result()->fetch_assoc();
         $stmt_encuesta->close();
 
-        // Si no se encontró o no es borrador, devolver null
+        // Si no se encontró o no es borrador (o no es propietario, si no es admin)
         if (!$encuesta) {
             return null;
         }
@@ -674,19 +690,17 @@ class Encuesta {
         $preguntas = $stmt_preguntas->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt_preguntas->close();
 
-        // Si no hay preguntas, devolver la encuesta sin ellas (aún es editable)
         if (empty($preguntas)) {
              $encuesta['preguntas'] = [];
              return $encuesta;
         }
 
-
         // 3. Obtener las opciones para cada pregunta
         $query_opciones = "SELECT id_opcion, texto_opcion, valor_escala
                            FROM opciones
-                           WHERE id_pregunta = ? ORDER BY id_opcion ASC"; // Ordenar opciones consistentemente
+                           WHERE id_pregunta = ? ORDER BY id_opcion ASC";
         $stmt_opciones = $this->conexion->prepare($query_opciones);
-        if (!$stmt_opciones) { error_log("Prepare failed (getEditable opciones): ".$this->conexion->error); return false; } // Error si falla preparar opciones
+        if (!$stmt_opciones) { error_log("Prepare failed (getEditable opciones): ".$this->conexion->error); return false; }
 
         $preguntas_con_opciones = [];
         foreach ($preguntas as $pregunta) {
@@ -694,15 +708,14 @@ class Encuesta {
             $stmt_opciones->execute();
             $opciones_result = $stmt_opciones->get_result();
             $opciones = $opciones_result->fetch_all(MYSQLI_ASSOC);
-            $pregunta['opciones'] = $opciones; // Añadir array de opciones a la pregunta
+            $pregunta['opciones'] = $opciones;
             $preguntas_con_opciones[] = $pregunta;
         }
-        $stmt_opciones->close(); // Cerrar statement fuera del bucle
+        $stmt_opciones->close();
 
-        $encuesta['preguntas'] = $preguntas_con_opciones; // Añadir preguntas con sus opciones
+        $encuesta['preguntas'] = $preguntas_con_opciones;
         return $encuesta;
     }
-
     /**
      * OBTIENE LISTA ÚNICA DE PARTICIPANTES IDENTIFICADOS
      * @param int $id_encuesta
@@ -725,22 +738,6 @@ class Encuesta {
     }
 
 
-    /**
-     * Verifica si un encuestador es el propietario de una encuesta.
-     * @param int $id_encuesta
-     * @param int $id_encuestador
-     * @return bool
-     */
-    public function checkSurveyOwnership($id_encuesta, $id_encuestador) {
-        $query = "SELECT COUNT(*) AS count FROM encuestas WHERE id_encuesta = ? AND id_encuestador = ?";
-        $stmt = $this->conexion->prepare($query);
-        if (!$stmt) { return false; }
-        $stmt->bind_param("ii", $id_encuesta, $id_encuestador);
-        $stmt->execute();
-        $resultado = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        return ($resultado && $resultado['count'] > 0);
-    }
 
     /**
      * Obtiene los resultados de una encuesta (VERSIÓN ADMIN).
@@ -895,6 +892,42 @@ class Encuesta {
         $stmt->close();
         return $success;
     }
+
+    /**
+     * Actualiza solo los metadatos de una encuesta.
+     */
+    public function updateSurveyMeta($id_encuesta, $titulo, $descripcion, $visibilidad, $estado) {
+        $stmt = $this->conexion->prepare("UPDATE encuestas SET titulo = ?, descripcion = ?, visibilidad = ?, estado = ? WHERE id_encuesta = ?");
+        $stmt->bind_param("ssssi", $titulo, $descripcion, $visibilidad, $estado, $id_encuesta);
+        return $stmt->execute();
+    }
+
+    /**
+     * Borra todas las preguntas (y sus opciones en cascada) de una encuesta.
+     */
+    public function deleteAllQuestionsFromSurvey($id_encuesta) {
+        // Esto asume que la tabla 'opciones' tiene ON DELETE CASCADE en la foreign key 'id_pregunta'
+        $stmt = $this->conexion->prepare("DELETE FROM preguntas WHERE id_encuesta = ?");
+        $stmt->bind_param("i", $id_encuesta);
+        return $stmt->execute();
+    }
+
+    /**
+     * Verifica si un usuario es el dueño de una encuesta.
+     */
+    public function checkSurveyOwnership($id_encuesta, $id_usuario) {
+        $stmt = $this->conexion->prepare("SELECT id_encuestador FROM encuestas WHERE id_encuesta = ?");
+        $stmt->bind_param("i", $id_encuesta);
+        $stmt->execute();
+        $resultado = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($resultado) {
+            return $resultado['id_encuestador'] == $id_usuario;
+        }
+        return false;
+    }
+
+    
     
 }
 ?>

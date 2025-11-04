@@ -51,7 +51,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
         .encuesta-info h3 { margin: 0 0 5px 0; font-size: 1.1rem; } .encuesta-info span { font-size: 0.85rem; padding: 3px 8px; border-radius: 12px; color: #fff; }
         .encuesta-info .estado-publicada { background-color: #28a745; } .encuesta-info .estado-cerrada { background-color: #dc3545; } .encuesta-info .estado-borrador { background-color: #6c757d; }
         .encuesta-acciones { display: flex; gap: 5px; margin-top: 10px;}
-        .encuesta-acciones button { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .encuesta-acciones button, .encuesta-acciones a { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; color: white; font-size: 0.9rem; flex-grow: 1; text-align: center; display: flex; align-items: center; justify-content: center; gap: 5px; }
         .btn-resultados { background-color: #17a2b8; }
         .resultados-container { background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .resultados-header h2 { margin-bottom: 5px; } .resultados-header p { color: #666; margin-bottom: 20px; }
@@ -87,6 +87,10 @@ $nombre = htmlspecialchars($usuario['nombre']);
         .btn-crear-encuestador { background-color: #28a745; }
         .btn-crear-alumno { background-color: #007bff; }
         .user-list-container { margin-top: 30px; }
+        .search-bar-container { position: relative; margin-bottom: 15px; width: 100%; max-width: 400px; }
+        #admin-user-search { width: 100%; padding: 10px 15px 10px 40px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1rem; }
+        .search-bar-container i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #999; }
+        .filter-no-results td { text-align: center; padding: 20px; font-style: italic; color: #777; }
         .user-list-tabs { display: flex; border-bottom: 2px solid #ccc; }
         .user-tab-link { padding: 10px 20px; cursor: pointer; font-size: 1.1rem; font-weight: 500; color: #666; border-bottom: 3px solid transparent; margin-bottom: -2px; }
         .user-tab-link.active { color: #333; border-bottom-color: #333; }
@@ -133,9 +137,14 @@ $nombre = htmlspecialchars($usuario['nombre']);
         .btn-delete-pregunta { color: #dc3545; background: none; border: none; cursor: pointer; font-size: 1.2rem; }
         .btn-add-pregunta { display: block; margin: 20px auto; padding: 10px 20px; background: #fff; border: 1px dashed #ccc; border-radius: 5px; cursor: pointer; color: #555; transition: all 0.2s ease; display: flex; align-items: center; gap: 8px; justify-content: center; }
         .btn-add-pregunta:hover { background: #f9f9f9; border-style: solid; color: #007bff; }
-        .btn-admin-delete-survey { background-color: #dc3545; }
+        
+        /* ✅ CSS PARA BOTONES DE ENCUESTA (copiado de dashboard_general) */
+        .btn-admin-delete-survey, .btn-eliminar { background-color: #dc3545; }
+        .btn-editar { background-color: #ffc107; color: #333; }
+        .btn-publish-lista { background-color: #28a745; color: white;}
+        .btn-cerrar { background-color: #ffc107; color: #333; }
 
-        /* ✅ NUEVO: Estilos para la lista de encuestas del admin */
+        /* ✅ CSS PARA LA LISTA DE ENCUESTAS PROPIAS DEL ADMIN */
         .admin-own-surveys-container {
             background: #fff;
             border-radius: 8px;
@@ -148,7 +157,6 @@ $nombre = htmlspecialchars($usuario['nombre']);
             border-bottom: 1px solid #eee;
             padding-bottom: 10px;
         }
-        /* Re-usar el estilo .encuesta-item */
         .admin-own-surveys-container .encuesta-item {
              border-bottom: 1px solid #f0f0f0;
              padding: 15px 0;
@@ -234,8 +242,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
             didOpen: (toast) => { toast.onmouseenter = Swal.stopTimer; toast.onmouseleave = Swal.resumeTimer; }
         });
         
-        // Variable global para el builder
-        let preguntaIndex = 0; 
+        let preguntaIndex = 0; // Contador global para el form builder
 
         // --- Navegación ---
         function activarTab(tabId) {
@@ -243,7 +250,6 @@ $nombre = htmlspecialchars($usuario['nombre']);
             if (tabId) { $(tabId).addClass('active'); }
         }
 
-        // Oculta/muestra barras de navegación secundarias
         function setNavContext(context) {
             if (context === 'list') {
                 $('#publish-button-placeholder').empty();
@@ -251,6 +257,9 @@ $nombre = htmlspecialchars($usuario['nombre']);
             } else if (context === 'form-create') {
                 $('#back-button-container').show();
                 $('#publish-button-placeholder').html(`<button type="submit" form="form-crear-encuesta" class="btn-publish" style="background-color: #007bff; color: white;"><i class="fa-solid fa-save"></i> Guardar Encuesta</button>`);
+            } else if (context === 'form-edit') { // ✅ AÑADIDO
+                 $('#back-button-container').show();
+                $('#publish-button-placeholder').html(`<button type="submit" form="form-editar-encuesta" class="btn-publish" style="background-color: #ffc107; color: #333;"><i class="fa-solid fa-save"></i> Actualizar Borrador</button>`);
             } else if (context === 'results') {
                 $('#back-button-container').show();
                 $('#publish-button-placeholder').empty();
@@ -263,7 +272,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
         // 0. Cargar "Estadísticas" (Home)
         function cargarEstadisticas() {
             activarTab('#btn-tab-estadisticas');
-            setNavContext('list'); // Ocultar barra "Volver"
+            setNavContext('list');
             const container = $('#dashboard-content-container');
             container.html('<div id="loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando estadísticas...</div>');
 
@@ -286,41 +295,10 @@ $nombre = htmlspecialchars($usuario['nombre']);
                             </div>`;
                         container.html(html);
 
-                        // Inicializar Gráfico de Visibilidad (Pastel)
-                        try {
-                            const visData = stats.visibilidad || [];
-                            const visLabels = visData.map(item => item.visibilidad.charAt(0).toUpperCase() + item.visibilidad.slice(1));
-                            const visCounts = visData.map(item => item.total);
-                            if(visData.length > 0){
-                                const ctxPie = document.getElementById('visibilidadPieChart').getContext('2d');
-                                new Chart(ctxPie, { type: 'pie', data: { labels: visLabels, datasets: [{ label: 'Encuestas', data: visCounts, backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(201, 203, 207, 0.7)'], borderColor: ['rgba(75, 192, 192, 1)', 'rgba(201, 203, 207, 1)'], }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } } } });
-                            } else {
-                                $('#visibilidadPieChart').parent().html('<p style="text-align:center; padding: 20px;">No hay encuestas publicadas.</p>');
-                            }
-                        } catch (e) { console.error("Error al crear gráfico de visibilidad:", e); }
+                        // ... (código de pintar gráficos) ...
+                        try { const visData = stats.visibilidad || []; const visLabels = visData.map(item => item.visibilidad.charAt(0).toUpperCase() + item.visibilidad.slice(1)); const visCounts = visData.map(item => item.total); if(visData.length > 0){ const ctxPie = document.getElementById('visibilidadPieChart').getContext('2d'); new Chart(ctxPie, { type: 'pie', data: { labels: visLabels, datasets: [{ label: 'Encuestas', data: visCounts, backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(201, 203, 207, 0.7)'], borderColor: ['rgba(75, 192, 192, 1)', 'rgba(201, 203, 207, 1)'], }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } } } }); } else { $('#visibilidadPieChart').parent().html('<p style="text-align:center; padding: 20px;">No hay encuestas publicadas.</p>'); } } catch (e) { console.error("Error al crear gráfico de visibilidad:", e); }
+                        try { const tiposData = stats.tipos_pregunta || []; const tiposLabels = tiposData.map(item => item.tipo_pregunta); const tiposCounts = tiposData.map(item => item.total); if(tiposData.length > 0){ const ctxBar = document.getElementById('tiposPreguntaBarChart').getContext('2d'); new Chart(ctxBar, { type: 'bar', data: { labels: tiposLabels, datasets: [{ label: 'Total de Preguntas', data: tiposCounts, backgroundColor: 'rgba(54, 162, 235, 0.6)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } } }); } else { $('#tiposPreguntaBarChart').parent().html('<p style="text-align:center; padding: 20px;">No se han creado preguntas.</p>'); } } catch (e) { console.error("Error al crear gráfico de tipos:", e); }
 
-                        // Inicializar Gráfico de Tipos de Pregunta (Barras)
-                        try {
-                            const tiposData = stats.tipos_pregunta || [];
-                            const tiposLabels = tiposData.map(item => item.tipo_pregunta);
-                            const tiposCounts = tiposData.map(item => item.total);
-                             if(tiposData.length > 0){
-                                const ctxBar = document.getElementById('tiposPreguntaBarChart').getContext('2d');
-                                new Chart(ctxBar, {
-                                    type: 'bar',
-                                    data: {
-                                        labels: tiposLabels,
-                                        datasets: [{
-                                            label: 'Total de Preguntas', data: tiposCounts,
-                                            backgroundColor: 'rgba(54, 162, 235, 0.6)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1
-                                        }]
-                                    },
-                                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } }
-                                });
-                            } else {
-                                $('#tiposPreguntaBarChart').parent().html('<p style="text-align:center; padding: 20px;">No se han creado preguntas.</p>');
-                            }
-                        } catch (e) { console.error("Error al crear gráfico de tipos:", e); }
                     } else { container.html(`<p style="color: red;">${response.mensaje || 'No se pudieron cargar las estadísticas.'}</p>`); }
                 },
                 error: function() { container.html('<p style="color: red;">Error de conexión.</p>'); }
@@ -330,7 +308,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
         // 1. Cargar "Gestión de Usuarios"
         function cargarGestionUsuarios() {
             activarTab('#btn-tab-gestion-usuarios');
-            setNavContext('list'); // Ocultar barra "Volver"
+            setNavContext('list');
             const container = $('#dashboard-content-container');
             
             const html = `
@@ -351,7 +329,6 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                         <div class="form-group"><label for="admin-nombre-enc">Nombres</label><input type="text" id="admin-nombre-enc" required></div>
                                         <div class="form-group"><label for="admin-apellido-enc">Apellidos</label><input type="text" id="admin-apellido-enc" required></div>
                                         <div class="form-group"><label for="admin-email-enc">Correo Electrónico</label><input type="email" id="admin-email-enc" placeholder="ejemplo@tecmerida.com" required></div>
-                                        <div class="form-group"><label for="admin-asignatura-enc">carrera</label><input type="text" id="admin-carrera-enc" required></div>                                        
                                         <div class="form-group"><label for="admin-asignatura-enc">Materia (Asignatura)</label><input type="text" id="admin-asignatura-enc" required></div>
                                         <div class="form-group"><label for="admin-contrasena-enc">Contraseña Temporal</label><input type="password" id="admin-contrasena-enc" required><div class="password-hint">Debe cumplir: 8+ carac, 1 especial, termina en "AL"</div></div>
                                         <button type="submit" class="btn-crear-usuario btn-crear-encuestador"><i class="fa-solid fa-user-plus"></i> Crear Encuestador</button>
@@ -393,6 +370,10 @@ $nombre = htmlspecialchars($usuario['nombre']);
                         </div>
                     </div>
                     <div class="user-list-container">
+                        <div class="search-bar-container">
+                            <i class="fa-solid fa-search"></i>
+                            <input type="text" id="admin-user-search" placeholder="Buscar por nombre, apellido, correo...">
+                        </div>
                         <div class="user-list-tabs">
                             <button class="user-tab-link active" data-tab="lista-encuestadores">Encuestadores</button>
                             <button class="user-tab-link" data-tab="lista-alumnos">Alumnos</button>
@@ -443,7 +424,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                 </tr>`);
                         });
                     } else {
-                        $tbody.append('<tr><td colspan="4" style="text-align:center; padding: 20px;">No hay encuestadores registrados.</td></tr>');
+                        $tbody.append('<tr class="no-data-row"><td colspan="4" style="text-align:center; padding: 20px;">No hay encuestadores registrados.</td></tr>');
                     }
                 }
             });
@@ -469,7 +450,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                 </tr>`);
                         });
                     } else {
-                        $tbody.append('<tr><td colspan="4" style="text-align:center; padding: 20px;">No hay alumnos registrados.</td></tr>');
+                        $tbody.append('<tr class="no-data-row"><td colspan="4" style="text-align:center; padding: 20px;">No hay alumnos registrados.</td></tr>');
                     }
                 }
             });
@@ -478,11 +459,10 @@ $nombre = htmlspecialchars($usuario['nombre']);
         // --- ✅ 2. Cargar "Gestión de Encuestas" (ACTUALIZADO) ---
         function cargarGestionEncuestas() {
             activarTab('#btn-tab-gestion-encuestas');
-            setNavContext('list'); // Ocultar barra "Volver"
+            setNavContext('list');
             const container = $('#dashboard-content-container');
             const adminId = <?php echo json_encode($_SESSION['usuario']['id_usuario']); ?>;
 
-            // HTML base con 2 secciones
             container.html(`
                 <div class="admin-own-surveys-container">
                     <h2><i class="fa-solid fa-user-shield"></i> Mis Encuestas (Creadas como Admin)</h2>
@@ -498,7 +478,6 @@ $nombre = htmlspecialchars($usuario['nombre']);
             `);
 
             // --- AJAX Call 1: Mis Encuestas (Admin) ---
-            // Usamos la API 'misEncuestas' que (asumimos) ahora permite admins
             $.ajax({
                 url: '../api/misEncuestas.php', 
                 method: 'GET', dataType: 'json',
@@ -506,21 +485,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
                     const $listContainer = $('#admin-my-surveys-list').empty();
                     if (response.success && response.encuestas.length > 0) {
                         response.encuestas.forEach(function(encuesta) {
-                            const estadoClase = `estado-${encuesta.estado}`;
-                            const estadoTexto = encuesta.estado.charAt(0).toUpperCase() + encuesta.estado.slice(1);
-                            let botonesAccion = '';
-                            
-                            // El admin solo puede ver resultados o eliminar (la edición es compleja)
-                            botonesAccion = `<button class="btn-resultados admin-ver-resultados" data-id="${encuesta.id_encuesta}" data-titulo="${encuesta.titulo}"><i class="fa-solid fa-chart-pie"></i> Resultados</button>`;
-                            botonesAccion += ` <button class="btn-admin-delete-survey" data-id="${encuesta.id_encuesta}" title="Eliminar Encuesta"><i class="fa-solid fa-trash"></i></button>`;
-
-                            const tituloEscapado = $('<div>').text(encuesta.titulo).html();
-                            const encuestaHtml = `
-                                <div class="encuesta-item">
-                                    <div class="encuesta-info"><h3>${tituloEscapado}</h3><div><span class="${estadoClase}">${estadoTexto}</span></div></div>
-                                    <div class="encuesta-acciones">${botonesAccion}</div>
-                                </div>`;
-                            $listContainer.append(encuestaHtml);
+                            $listContainer.append(generarHtmlEncuestaItem(encuesta));
                         });
                     } else {
                         $listContainer.html('<p style="text-align:center; padding: 10px;">No has creado ninguna encuesta como administrador.</p>');
@@ -535,13 +500,10 @@ $nombre = htmlspecialchars($usuario['nombre']);
                 success: function(response) {
                     const $accordionContainer = $('#admin-other-surveys-accordion').empty();
                     if (response.success && response.encuestadores) {
-                        // Filtramos al propio admin de la lista de "otros"
                         const otrosEncuestadores = response.encuestadores.filter(enc => enc.id_usuario != adminId);
-
                         if (otrosEncuestadores.length === 0) {
-                            $accordionContainer.html('<p style="padding: 10px;">No hay otros encuestadores registrados.</p>'); return;
+                            $accordionContainer.html('<p style="padding: 10px; text-align:center;">No hay otros encuestadores registrados.</p>'); return;
                         }
-                        
                         let accordionHtml = '<div class="lista-encuestadores-admin">';
                         otrosEncuestadores.forEach(enc => {
                             accordionHtml += `
@@ -561,10 +523,43 @@ $nombre = htmlspecialchars($usuario['nombre']);
             });
         }
         
+        // ✅ NUEVO: Helper para generar botones de encuesta (lógica de dashboard_general)
+        function generarHtmlEncuestaItem(encuesta) {
+            const estadoClase = `estado-${encuesta.estado}`;
+            const estadoTexto = encuesta.estado.charAt(0).toUpperCase() + encuesta.estado.slice(1);
+            let botonesAccion = '';
+
+            if (encuesta.estado === 'borrador') {
+                botonesAccion = `<button class="btn-editar" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-edit"></i> Editar</button>
+                                 <button class="btn-publish-lista" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-paper-plane"></i> Publicar</button>`;
+            } else if (encuesta.estado === 'publicada') {
+                botonesAccion = `<button class="btn-resultados" data-id="${encuesta.id_encuesta}" data-titulo="${encuesta.titulo}"><i class="fa-solid fa-chart-pie"></i> Resultados</button>
+                                 <button class="btn-cerrar" data-id="${encuesta.id_encuesta}" data-nuevo-estado="cerrada"><i class="fa-solid fa-lock"></i> Cerrar</button>`;
+            } else if (encuesta.estado === 'cerrada') {
+                botonesAccion = `<button class="btn-resultados" data-id="${encuesta.id_encuesta}" data-titulo="${encuesta.titulo}"><i class="fa-solid fa-chart-pie"></i> Resultados</button>
+                                 <button class="btn-cerrar" data-id="${encuesta.id_encuesta}" data-nuevo-estado="publicada" style="background-color: #28a745; color: white;"><i class="fa-solid fa-lock-open"></i> Re-Publicar</button>`;
+            }
+            
+            botonesAccion += ` <button class="btn-eliminar" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-trash-alt"></i> Eliminar</button>`;
+
+            const tituloEscapado = $('<div>').text(encuesta.titulo || 'Encuesta sin título').html();
+            let fechaFormateada = '';
+            try { fechaFormateada = new Date(encuesta.fecha_creacion).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch(e) {}
+            
+            return `<div class="encuesta-item" data-id-encuesta="${encuesta.id_encuesta}">
+                        <div class="encuesta-info">
+                            <h3>${tituloEscapado}</h3>
+                            <div><small>Creada: ${fechaFormateada}</small><span class="${estadoClase}">${estadoTexto}</span></div>
+                        </div>
+                        <div class="encuesta-acciones">${botonesAccion}</div>
+                    </div>`;
+        }
+
+
         // 3. Cargar Resultados (versión Admin)
         function cargarResultadosAdmin(idEncuesta, tituloEncuesta) {
             activarTab(null);
-            setNavContext('results'); // Mostrar barra "Volver"
+            setNavContext('results');
             const container = $('#dashboard-content-container');
             container.html('<div id="loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando resultados...</div>');
             $.ajax({
@@ -600,46 +595,11 @@ $nombre = htmlspecialchars($usuario['nombre']);
                             </div>`;
                         html += `</div>`; container.html(html);
 
-                        // 1. Inicializar Gráfico Pastel
-                        if (totalRespuestas > 0) {
-                            try { const ctx = document.getElementById('pieChartParticipacion').getContext('2d'); new Chart(ctx, { type: 'pie', data: { labels: ['Identificadas', 'Anónimas'], datasets: [{ label: '# de Respuestas', data: [r.resumen_participacion.respuestas_identificadas, r.resumen_participacion.respuestas_anonimas], backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(201, 203, 207, 0.7)'], borderColor: ['rgba(75, 192, 192, 1)', 'rgba(201, 203, 207, 1)'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } } } }); } catch (e) { console.error("Error al crear gráfico pastel:", e); }
-                        }
+                        // ... (código para pintar gráficos, igual que antes) ...
+                        if (totalRespuestas > 0) { try { const ctx = document.getElementById('pieChartParticipacion').getContext('2d'); new Chart(ctx, { type: 'pie', data: { labels: ['Identificadas', 'Anónimas'], datasets: [{ label: '# de Respuestas', data: [r.resumen_participacion.respuestas_identificadas, r.resumen_participacion.respuestas_anonimas], backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(201, 203, 207, 0.7)'], borderColor: ['rgba(75, 192, 192, 1)', 'rgba(201, 203, 207, 1)'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } } } }); } catch (e) { console.error("Error al crear gráfico pastel:", e); } }
+                        const preguntasGraficosContainer = $('#preguntas-graficos-container'); if (totalRespuestas > 0 && r.preguntas && r.preguntas.length > 0) { let pce = false; r.preguntas.forEach((preg, index) => { const txt = $('<div>').text(preg.texto_pregunta).html(); if (['opcion_multiple', 'si_no', 'escala', 'seleccion_multiple'].includes(preg.tipo_pregunta)) { if (preg.resultados && preg.resultados.length > 0) { pce = true; const labels = []; const data = []; const bg = ['rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 159, 64, 0.6)', 'rgba(255, 99, 132, 0.6)']; const bd = ['rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)']; preg.resultados.forEach((res, i) => { labels.push(res.texto_opcion); data.push(res.conteo); }); const pHtml = `<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${txt}</h4><div class="bar-chart-container"><canvas id="barChartPregunta${preg.id_pregunta}"></canvas></div></div>`; preguntasGraficosContainer.append(pHtml); try { const ctxBar = document.getElementById(`barChartPregunta${preg.id_pregunta}`).getContext('2d'); new Chart(ctxBar, { type: 'bar', data: { labels: labels, datasets: [{ label: '# de Respuestas', data: data, backgroundColor: bg.slice(0, data.length), borderColor: bd.slice(0, data.length), borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } } }); } catch (e) { console.error(`Error al crear gráfico ${preg.id_pregunta}:`, e); } } else { preguntasGraficosContainer.append(`<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${txt}</h4><p><em>No hay respuestas.</em></p></div>`); } } else if (preg.tipo_pregunta === 'abierta') { pce = true; let aHtml = `<div class="pregunta-resultado-abierta"><h4>${index + 1}. ${txt} (Respuesta Corta)</h4>`; if (preg.resultados && preg.resultados.length > 0) { preg.resultados.forEach(res => { aHtml += `<div class="respuesta-abierta">"${$('<div>').text(res.texto_respuesta).html()}" <span>- ${$('<div>').text(res.participante || 'Anónimo').html()}</span></div>`; }); } else { aHtml += `<p><em>No hay respuestas.</em></p>`; } aHtml += `</div>`; preguntasGraficosContainer.append(aHtml); } }); if (!pce) { preguntasGraficosContainer.html('<div style="text-align: center; padding: 20px;"><p>No hay preguntas contables.</p></div>'); } } else { preguntasGraficosContainer.html('<div style="text-align: center; padding: 30px; border: 1px dashed #ccc; border-radius: 8px; margin-top: 20px;"><i class="fa-solid fa-inbox fa-2x" style="color: #ccc; margin-bottom: 15px;"></i><p><strong>Aún no hay respuestas</strong>.</p></div>'); }
+                        if (r.visibilidad === 'identificada' && r.participantes_identificados && r.participantes_identificados.length > 0) { $('.tab-button-res[data-tab="participantes"]').show(); const pCont = $('#participantes-lista-container'); let lHtml = '<ul class="lista-participantes">'; r.participantes_identificados.forEach(p => { const nom = `${p.apellido}, ${p.nombre}`; const nomEsc = $('<div>').text(nom).html(); lHtml += `<li><a href="#" class="participante-link admin-ver-respuestas" data-id-encuesta="${idEncuesta}" data-id-alumno="${p.id_usuario}" data-nombre-alumno="${nomEsc}"><i class="fa-solid fa-user"></i> ${nomEsc}</a></li>`; }); lHtml += '</ul>'; pCont.html(lHtml); } else { $('.tab-button-res[data-tab="participantes"]').hide(); $('#participantes-lista-container').html('<p>Encuesta anónima o sin respuestas identificadas.</p>'); }
 
-                        // 2. Generar Gráficos de Barras
-                        const preguntasGraficosContainer = $('#preguntas-graficos-container');
-                        if (totalRespuestas > 0 && r.preguntas && r.preguntas.length > 0) {
-                            let preguntasContablesEncontradas = false;
-                            r.preguntas.forEach((preg, index) => {
-                                const textoPreguntaEscapado = $('<div>').text(preg.texto_pregunta).html();
-                                if (['opcion_multiple', 'si_no', 'escala', 'seleccion_multiple'].includes(preg.tipo_pregunta)) {
-                                    if (preg.resultados && preg.resultados.length > 0) {
-                                        preguntasContablesEncontradas = true;
-                                        const labels = []; const data = []; const backgroundColors = ['rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 159, 64, 0.6)', 'rgba(255, 99, 132, 0.6)']; const borderColors = ['rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)'];
-                                        preg.resultados.forEach((res, i) => { labels.push(res.texto_opcion); data.push(res.conteo); });
-                                        const preguntaGraficoHtml = `<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${textoPreguntaEscapado}</h4><div class="bar-chart-container"><canvas id="barChartPregunta${preg.id_pregunta}"></canvas></div></div>`;
-                                        preguntasGraficosContainer.append(preguntaGraficoHtml);
-                                        try { const ctxBar = document.getElementById(`barChartPregunta${preg.id_pregunta}`).getContext('2d'); new Chart(ctxBar, { type: 'bar', data: { labels: labels, datasets: [{ label: '# de Respuestas', data: data, backgroundColor: backgroundColors.slice(0, data.length), borderColor: borderColors.slice(0, data.length), borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } } }); } catch (e) { console.error(`Error al crear gráfico ${preg.id_pregunta}:`, e); }
-                                    } else { preguntasGraficosContainer.append(`<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${textoPreguntaEscapado}</h4><p><em>No hay respuestas.</em></p></div>`); }
-                                } else if (preg.tipo_pregunta === 'abierta') {
-                                    preguntasContablesEncontradas = true; let abiertaHtml = `<div class="pregunta-resultado-abierta"><h4>${index + 1}. ${textoPreguntaEscapado} (Respuesta Corta)</h4>`;
-                                    if (preg.resultados && preg.resultados.length > 0) { preg.resultados.forEach(res => { abiertaHtml += `<div class="respuesta-abierta">"${$('<div>').text(res.texto_respuesta).html()}" <span>- ${$('<div>').text(res.participante || 'Anónimo').html()}</span></div>`; }); } else { abiertaHtml += `<p><em>No hay respuestas.</em></p>`; }
-                                    abiertaHtml += `</div>`; preguntasGraficosContainer.append(abiertaHtml);
-                                }
-                            });
-                            if (!preguntasContablesEncontradas) { preguntasGraficosContainer.html('<div style="text-align: center; padding: 20px;"><p>No hay preguntas contables.</p></div>'); }
-                        } else { preguntasGraficosContainer.html('<div style="text-align: center; padding: 30px; border: 1px dashed #ccc; border-radius: 8px; margin-top: 20px;"><i class="fa-solid fa-inbox fa-2x" style="color: #ccc; margin-bottom: 15px;"></i><p><strong>Aún no hay respuestas</strong>.</p></div>'); }
-
-                        // 3. Llenar Pestaña Participantes
-                        if (r.visibilidad === 'identificada' && r.participantes_identificados && r.participantes_identificados.length > 0) {
-                            $('.tab-button-res[data-tab="participantes"]').show();
-                            const participantesContainer = $('#participantes-lista-container'); let listaHtml = '<ul class="lista-participantes">';
-                            r.participantes_identificados.forEach(p => { 
-                                const nombreCompleto = `${p.apellido}, ${p.nombre}`;
-                                const nombreEscapado = $('<div>').text(nombreCompleto).html();
-                                listaHtml += `<li><a href="#" class="participante-link admin-ver-respuestas" data-id-encuesta="${idEncuesta}" data-id-alumno="${p.id_usuario}" data-nombre-alumno="${nombreEscapado}"><i class="fa-solid fa-user"></i> ${nombreEscapado}</a></li>`; 
-                            });
-                            listaHtml += '</ul>'; participantesContainer.html(listaHtml);
-                        } else { $('.tab-button-res[data-tab="participantes"]').hide(); $('#participantes-lista-container').html('<p>Encuesta anónima o sin respuestas identificadas.</p>'); }
                     } else { container.html(`<p style="color: red;">${response.mensaje || 'Error al cargar resultados.'}</p>`); }
                 },
                 error: function() { container.html('<p style="color: red;">Error de conexión.</p>'); }
@@ -648,42 +608,14 @@ $nombre = htmlspecialchars($usuario['nombre']);
         
         // 4. Mostrar Modal de Respuestas (versión Admin)
         function mostrarRespuestasAlumnoAdmin(idEncuesta, idAlumno, nombreAlumno) {
-            Swal.fire({ title: `Cargando respuestas de ${nombreAlumno}...`, didOpen: () => { Swal.showLoading(); } });
-            $.ajax({
-                url: `../api/obtenerRespuestasDeAlumno.php?id_encuesta=${idEncuesta}&id_alumno=${idAlumno}`,
-                method: 'GET', dataType: 'json',
-                success: function(response) {
-                    if (response.success && response.respuestas_alumno && Array.isArray(response.respuestas_alumno)) {
-                        let html = '<div class="swal-form-respuestas">';
-                        let preguntaNumero = 1;
-                        response.respuestas_alumno.forEach(pregunta => {
-                            html += `<div class="swal-pregunta-item"><h4>${preguntaNumero++}. ${$('<div>').text(pregunta.texto_pregunta).html()}</h4>`;
-                            const respuesta = pregunta.respuesta_alumno;
-                            if (pregunta.tipo_pregunta === 'abierta') {
-                                let texto = '<em>(No respondió)</em>'; if(respuesta && respuesta.texto_respuesta_abierta) { texto = $('<div>').text(respuesta.texto_respuesta_abierta).html(); }
-                                html += `<div class="swal-respuesta-abierta-display">${texto}</div>`;
-                            } else if (pregunta.opciones && pregunta.opciones.length > 0) {
-                                pregunta.opciones.forEach(opcion => {
-                                    let esSeleccionada = false; if (respuesta && respuesta.opciones_seleccionadas) { esSeleccionada = respuesta.opciones_seleccionadas.includes(opcion.id_opcion); }
-                                    let iconClass = 'fa-regular fa-circle'; if (pregunta.tipo_pregunta === 'seleccion_multiple') { iconClass = 'fa-regular fa-square'; } if (esSeleccionada) { iconClass = (pregunta.tipo_pregunta === 'seleccion_multiple') ? 'fa-solid fa-square-check' : 'fa-solid fa-check-circle'; }
-                                    const textoOpcion = $('<div>').text(opcion.texto_opcion).html();
-                                    html += `<div class="swal-opcion-display ${esSeleccionada ? 'selected' : ''}"><i class="${iconClass}"></i> ${textoOpcion}</div>`;
-                                });
-                            } else { html += `<p><em>(Pregunta sin opciones)</em></p>`; }
-                            html += `</div>`;
-                        });
-                        html += "</div>";
-                        Swal.update({ title: `Respuestas de ${nombreAlumno}`, html: html, icon: undefined, width: '700px', showConfirmButton: true, confirmButtonText: "Cerrar" });
-                    } else { Swal.fire("Error", response.mensaje || "No se pudieron cargar.", "warning"); }
-                },
-                error: function(jqXHR) { let msg = "Error de conexión."; if (jqXHR.status === 403) msg = "No tienes permiso."; Swal.fire("Error", msg, "error"); }
-            });
+            // ... (código igual que antes, omitido por brevedad) ...
+            Swal.fire({ title: `Cargando respuestas de ${nombreAlumno}...`, didOpen: () => { Swal.showLoading(); } }); $.ajax({ url: `../api/obtenerRespuestasDeAlumno.php?id_encuesta=${idEncuesta}&id_alumno=${idAlumno}`, method: 'GET', dataType: 'json', success: function(response) { if (response.success && response.respuestas_alumno && Array.isArray(response.respuestas_alumno)) { let html = '<div class="swal-form-respuestas">'; let preguntaNumero = 1; response.respuestas_alumno.forEach(pregunta => { html += `<div class="swal-pregunta-item"><h4>${preguntaNumero++}. ${$('<div>').text(pregunta.texto_pregunta).html()}</h4>`; const respuesta = pregunta.respuesta_alumno; if (pregunta.tipo_pregunta === 'abierta') { let texto = '<em>(No respondió)</em>'; if(respuesta && respuesta.texto_respuesta_abierta) { texto = $('<div>').text(respuesta.texto_respuesta_abierta).html(); } html += `<div class="swal-respuesta-abierta-display">${texto}</div>`; } else if (pregunta.opciones && pregunta.opciones.length > 0) { pregunta.opciones.forEach(opcion => { let esSeleccionada = false; if (respuesta && respuesta.opciones_seleccionadas) { esSeleccionada = respuesta.opciones_seleccionadas.includes(opcion.id_opcion); } let iconClass = 'fa-regular fa-circle'; if (pregunta.tipo_pregunta === 'seleccion_multiple') { iconClass = 'fa-regular fa-square'; } if (esSeleccionada) { iconClass = (pregunta.tipo_pregunta === 'seleccion_multiple') ? 'fa-solid fa-square-check' : 'fa-solid fa-check-circle'; } const textoOpcion = $('<div>').text(opcion.texto_opcion).html(); html += `<div class="swal-opcion-display ${esSeleccionada ? 'selected' : ''}"><i class="${iconClass}"></i> ${textoOpcion}</div>`; }); } else { html += `<p><em>(Pregunta sin opciones)</em></p>`; } html += `</div>`; }); html += "</div>"; Swal.update({ title: `Respuestas de ${nombreAlumno}`, html: html, icon: undefined, width: '700px', showConfirmButton: true, confirmButtonText: "Cerrar" }); } else { Swal.fire("Error", response.mensaje || "No se pudieron cargar.", "warning"); } }, error: function(jqXHR) { let msg = "Error de conexión."; if (jqXHR.status === 403) msg = "No tienes permiso."; Swal.fire("Error", msg, "error"); } });
         }
         
-        // --- ✅ 5. Cargar "Crear Nueva Encuesta" (Admin) ---
+        // --- 5. Cargar "Crear Nueva Encuesta" (Admin) ---
         function cargarFormCrearAdmin() {
             activarTab('#btn-tab-crear');
-            setNavContext('form-create'); // Mostrar barra "Volver" y botón "Guardar"
+            setNavContext('form-create');
             const container = $('#dashboard-content-container');
             const formHtml = `
                 <form id="form-crear-encuesta" class="form-builder-container">
@@ -700,10 +632,39 @@ $nombre = htmlspecialchars($usuario['nombre']);
                 </form>`;
             container.html(formHtml);
             preguntaIndex = 0;
-            agregarPregunta(); // Agregar la primera pregunta por defecto
+            agregarPregunta();
         }
 
-        // --- ✅ 6. Funciones del Form Builder (Copiadas) ---
+        // --- ✅ 6. Cargar Formulario para EDITAR Borrador (Admin) ---
+        function cargarFormEditarAdmin(idEncuesta) {
+            activarTab(null);
+            setNavContext('form-edit');
+            const container = $('#dashboard-content-container');
+            container.html('<div id="loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando datos del borrador...</div>');
+
+            $.ajax({
+                url: `../api/obtenerEncuestaEditable.php?id_encuesta=${idEncuesta}`,
+                method: 'GET', dataType: 'json',
+                success: function(response) {
+                    if (response.success && response.encuesta) {
+                        const encuesta = response.encuesta;
+                        // El admin puede editar encuestas publicadas, pero al guardar se guardan como "borrador"
+                        const estadoOriginal = encuesta.estado;
+                        let formHtml = `<form id="form-editar-encuesta" class="form-builder-container"><input type="hidden" name="id_encuesta" value="${encuesta.id_encuesta}"><div class="survey-header-editor"><input type="text" id="titulo" name="titulo" placeholder="Título del formulario" value="${encuesta.titulo || ''}" required><textarea id="descripcion" name="descripcion" placeholder="Descripción del formulario">${encuesta.descripcion || ''}</textarea><div style="display: flex; gap: 20px; margin-top: 15px; flex-wrap: wrap;"><div class="form-group" style="flex: 1; min-width: 150px;"><label>Visibilidad:</label><select id="visibilidad" name="visibilidad"><option value="identificada" ${encuesta.visibilidad === 'identificada' ? 'selected' : ''}>Identificada</option><option value="anonima" ${encuesta.visibilidad === 'anonima' ? 'selected' : ''}>Anónima</option></select></div><div class="form-group" style="flex: 1; min-width: 150px;"><label>Estado (Al guardar, volverá a borrador):</label><input type="text" value="${estadoOriginal}" style="font-size: 0.9rem; padding: 5px; background: #eee;" disabled><input type="hidden" name="estado" value="borrador"></div></div></div><div id="preguntas-container"></div><button type="button" id="btn-add-pregunta" class="btn-add-pregunta"><i class="fa-solid fa-plus"></i> Añadir Pregunta</button></form>`;
+                        container.html(formHtml);
+                        preguntaIndex = 0;
+                        if (encuesta.preguntas && encuesta.preguntas.length > 0) {
+                            encuesta.preguntas.forEach(pregunta => { agregarPreguntaConDatos(pregunta); });
+                        } else {
+                            agregarPregunta();
+                        }
+                    } else { Swal.fire('Error', response.mensaje || 'No se pudo cargar el borrador.', 'error'); cargarGestionEncuestas(); }
+                },
+                error: function(jqXHR) { let msg = 'Error de conexión.'; if(jqXHR.status === 404) msg = 'Borrador no encontrado.'; Swal.fire('Error', msg, 'error'); cargarGestionEncuestas(); }
+            });
+        }
+
+        // --- ✅ 7. Funciones del Form Builder (Copiadas) ---
         function agregarPregunta() {
             const index = preguntaIndex++;
             const preguntaHtml = `
@@ -712,6 +673,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
                         <input type="text" name="preguntas[${index}][texto_pregunta]" placeholder="Pregunta sin título" required>
                         <select name="preguntas[${index}][tipo_pregunta]" class="tipo-pregunta-selector">
                             <option value="opcion_multiple">Opción Múltiple</option>
+                            <option value="seleccion_multiple">Selección Múltiple</option>
                             <option value="abierta">Respuesta Corta</option>
                             <option value="si_no">Verdadero / Falso</option>
                             <option value="escala">Escala (1-5)</option>
@@ -734,6 +696,39 @@ $nombre = htmlspecialchars($usuario['nombre']);
             container.find('.opcion-item:last-child input').focus();
         }
 
+        function agregarPreguntaConDatos(pregunta) {
+            const index = preguntaIndex++;
+            const tipoOptions = [
+                {value: 'opcion_multiple', text: 'Opción Múltiple'},
+                {value: 'seleccion_multiple', text: 'Selección Múltiple'},
+                {value: 'abierta', text: 'Respuesta Corta'},
+                {value: 'si_no', text: 'Verdadero / Falso'},
+                {value: 'escala', text: 'Escala (1-5)'}
+            ].map(tipo => {
+                return `<option value="${tipo.value}" ${pregunta.tipo_pregunta === tipo.value ? 'selected' : ''}>${tipo.text}</option>`;
+            }).join('');
+            
+            const preguntaHtml = `<div class="pregunta-block" data-index="${index}"><div class="pregunta-header"><input type="text" name="preguntas[${index}][texto_pregunta]" placeholder="Pregunta sin título" value="${pregunta.texto_pregunta || ''}" required><select name="preguntas[${index}][tipo_pregunta]" class="tipo-pregunta-selector">${tipoOptions}</select></div><div class="opciones-container"></div><div class="pregunta-footer"><button type="button" class="btn-delete-pregunta" title="Eliminar Pregunta"><i class="fa-solid fa-trash-alt"></i></button></div></div>`;
+            $('#preguntas-container').append(preguntaHtml);
+            const $containerOpciones = $(`.pregunta-block[data-index="${index}"] .opciones-container`);
+            
+            if (pregunta.opciones && pregunta.opciones.length > 0) {
+                if (pregunta.tipo_pregunta === 'opcion_multiple' || pregunta.tipo_pregunta === 'seleccion_multiple') {
+                    pregunta.opciones.forEach((opcion, opIndex) => { agregarOpcionConDatos($containerOpciones, index, opIndex, opcion.texto_opcion, pregunta.tipo_pregunta); });
+                    $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
+                }
+            } else if (pregunta.tipo_pregunta === 'opcion_multiple' || pregunta.tipo_pregunta === 'seleccion_multiple') {
+                agregarOpcion($containerOpciones, index, 0); $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
+            }
+             $(`.pregunta-block[data-index="${index}"] .tipo-pregunta-selector`).trigger('change');
+        }
+        function agregarOpcionConDatos(container, indexPregunta, opcionIndex, textoOpcion, tipoPregunta) {
+            const iconClass = (tipoPregunta === 'seleccion_multiple') ? 'far fa-square' : 'far fa-circle';
+            const opcionHtml = `<div class="opcion-item"><i class="${iconClass}" style="color: #ccc;"></i><input type="text" name="preguntas[${indexPregunta}][opciones][${opcionIndex}][texto_opcion]" placeholder="Opción ${opcionIndex + 1}" value="${textoOpcion || ''}" required><button type="button" class="btn-delete-opcion" title="Eliminar Opción">&times;</button></div>`;
+            container.append(opcionHtml);
+        }
+
+
         // --- Manejadores de Eventos ---
         $(document).ready(function() {
             cargarEstadisticas(); // Cargar vista inicial
@@ -742,13 +737,11 @@ $nombre = htmlspecialchars($usuario['nombre']);
             $('#btn-tab-estadisticas').on('click', (e) => { e.preventDefault(); cargarEstadisticas(); });
             $('#btn-tab-gestion-usuarios').on('click', (e) => { e.preventDefault(); cargarGestionUsuarios(); });
             $('#btn-tab-gestion-encuestas').on('click', (e) => { e.preventDefault(); cargarGestionEncuestas(); });
-            $('#btn-tab-crear').on('click', (e) => { e.preventDefault(); cargarFormCrearAdmin(); }); // ✅ Clic "Crear Encuesta"
+            $('#btn-tab-crear').on('click', (e) => { e.preventDefault(); cargarFormCrearAdmin(); }); 
             $('.header-logo').on('click', (e) => { e.preventDefault(); cargarEstadisticas(); });
             
-            // Botón "Volver"
             $('#back-button-container').on('click', '#btn-back-to-list', function(e) {
                 e.preventDefault();
-                // Si venimos de crear encuesta o ver resultados, volvemos a "Gestión de Encuestas"
                 cargarGestionEncuestas(); 
             });
 
@@ -756,18 +749,11 @@ $nombre = htmlspecialchars($usuario['nombre']);
             $('#dashboard-content-container').on('click', '#btn-toggle-forms', function() { $(this).toggleClass('open'); $('#form-accordion-content').slideToggle(); });
             $('#dashboard-content-container').on('click', '.inner-tab-link', function(e) { e.preventDefault(); const tabId = $(this).data('tab'); $(this).siblings().removeClass('active'); $(this).closest('.inner-tabs-container').find('.inner-tab-pane').removeClass('active'); $(this).addClass('active'); $(`#tab-${tabId}`).addClass('active'); });
             $('#dashboard-content-container').on('click', '.user-tab-link', function(e) { e.preventDefault(); const tabId = $(this).data('tab'); $(this).siblings().removeClass('active'); $(this).closest('.user-list-container').find('.user-list-pane').removeClass('active'); $(this).addClass('active'); $(`#tab-${tabId}`).addClass('active'); });
-
+            $('#dashboard-content-container').on('keyup', '#admin-user-search', function() { const query = $(this).val().toLowerCase(); const $activePane = $('.user-list-pane.active'); const $tbody = $activePane.find('tbody'); const $rowsToFilter = $tbody.find('tr:not(.no-data-row)'); $tbody.find('.filter-no-results').remove(); let visibleCount = 0; $rowsToFilter.each(function() { const rowText = $(this).text().toLowerCase(); if (rowText.includes(query)) { $(this).show(); visibleCount++; } else { $(this).hide(); } }); const $noDataRow = $tbody.find('.no-data-row'); if (visibleCount === 0 && $rowsToFilter.length > 0) { $noDataRow.hide(); $tbody.append('<tr class="filter-no-results"><td colspan="4">No se encontraron usuarios que coincidan.</td></tr>'); } else if ($rowsToFilter.length === 0) { $noDataRow.show(); } else { $noDataRow.hide(); } });
             $('#dashboard-content-container').on('submit', '#form-crear-encuestador', function(e) {
                 e.preventDefault();
                 const $button = $(this).find('.btn-crear-encuestador'); $button.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Creando...');
-                const datos = {
-                    nombre: $('#admin-nombre-enc').val().trim(),
-                    apellido: $('#admin-apellido-enc').val().trim(),
-                    email: $('#admin-email-enc').val().trim(),
-                    carrera: $('#admin-carrera-enc').val().trim(),
-                    asignatura: $('#admin-asignatura-enc').val().trim(),
-                    contrasena: $('#admin-contrasena-enc').val()
-                };
+                const datos = { nombre: $('#admin-nombre-enc').val().trim(), apellido: $('#admin-apellido-enc').val().trim(), email: $('#admin-email-enc').val().trim(), asignatura: $('#admin-asignatura-enc').val().trim(), contrasena: $('#admin-contrasena-enc').val() };
                 const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
                 if (datos.contrasena.length < 8 || !datos.contrasena.toLowerCase().endsWith('al') || !specialCharRegex.test(datos.contrasena)) { Swal.fire('Error', 'La contraseña no cumple los requisitos (8+ carac, 1 especial, termina en "AL").', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); return; }
                  if (!datos.email.toLowerCase().endsWith('@tecmerida.com')) { Swal.fire('Error', 'El correo debe ser @tecmerida.com.', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); return; }
@@ -777,7 +763,6 @@ $nombre = htmlspecialchars($usuario['nombre']);
                     error: function(jqXHR) { let errorMsg = 'Error de conexión.'; if (jqXHR.responseJSON && jqXHR.responseJSON.mensaje) { errorMsg = jqXHR.responseJSON.mensaje; } Swal.fire('Error', errorMsg, 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); }
                 });
             });
-
             $('#dashboard-content-container').on('submit', '#form-crear-alumno', function(e) {
                 e.preventDefault();
                 const $button = $(this).find('.btn-crear-alumno'); $button.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Creando...');
@@ -793,13 +778,11 @@ $nombre = htmlspecialchars($usuario['nombre']);
                     error: function(jqXHR) { let errorMsg = 'Error de conexión.'; if (jqXHR.responseJSON && jqXHR.responseJSON.mensaje) { errorMsg = jqXHR.responseJSON.mensaje; } else if (jqXHR.status === 409) { errorMsg = "El correo electrónico ya está registrado."; } Swal.fire('Error', errorMsg, 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno'); }
                 });
             });
-            
             $('#dashboard-content-container').on('click', '.btn-delete', function() {
                 const idUsuario = $(this).data('id'); const $fila = $(this).closest('tr');
                 Swal.fire({ title: '¿Estás seguro?', text: "Esta acción no se puede revertir. Se eliminará al usuario.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar'
                 }).then((result) => { if (result.isConfirmed) { $.ajax({ url: '../api/adminEliminarUsuario.php', method: 'POST', contentType: 'application/json', data: JSON.stringify({ id_usuario: idUsuario }), success: function(res) { if (res.success) { Toast.fire({icon:'success', title: 'Usuario eliminado.'}); $fila.fadeOut(500, function() { $(this).remove(); }); } else { Swal.fire('Error', res.mensaje, 'error'); } }, error: function(jqXHR) { const msg = jqXHR.responseJSON?.mensaje || 'No se pudo conectar con el servidor.'; Swal.fire('Error', msg, 'error'); } }); } });
             });
-
             $('#dashboard-content-container').on('click', '.btn-edit', function() {
                 const idUsuario = $(this).data('id'); const rol = $(this).data('rol');
                 $.ajax({
@@ -827,6 +810,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
                 });
             });
             
+
             // --- GESTIÓN DE ENCUESTAS (ADMIN) ---
             
             $('#dashboard-content-container').on('click', '.encuestador-acordeon', function() {
@@ -842,18 +826,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                 $panel.empty();
                                 if (res.success && res.encuestas.length > 0) {
                                     res.encuestas.forEach(function(encuesta) {
-                                        const estadoClase = `estado-${encuesta.estado}`;
-                                        const estadoTexto = encuesta.estado.charAt(0).toUpperCase() + encuesta.estado.slice(1);
-                                        const tituloEscapado = $('<div>').text(encuesta.titulo).html();
-                                        const encuestaHtml = `
-                                            <div class="encuesta-item">
-                                                <div class="encuesta-info"><h3>${tituloEscapado}</h3><div><span class="${estadoClase}">${estadoTexto}</span></div></div>
-                                                <div class="encuesta-acciones">
-                                                    <button class="btn-resultados admin-ver-resultados" data-id="${encuesta.id_encuesta}" data-titulo="${tituloEscapado}"><i class="fa-solid fa-chart-pie"></i> Ver Resultados</button>
-                                                    <button class="btn-admin-delete-survey" data-id="${encuesta.id_encuesta}" title="Eliminar Encuesta"><i class="fa-solid fa-trash"></i></button>
-                                                </div>
-                                            </div>`;
-                                        $panel.append(encuestaHtml);
+                                        $panel.append(generarHtmlEncuestaItem(encuesta));
                                     });
                                 } else { $panel.html('<div class="panel-loading">Este encuestador no tiene encuestas.</div>'); }
                             },
@@ -862,36 +835,16 @@ $nombre = htmlspecialchars($usuario['nombre']);
                     }
                 }
             });
-
-            $('#dashboard-content-container').on('click', '.btn-admin-delete-survey', function(e) {
-                e.stopPropagation(); 
-                const idEncuesta = $(this).data('id');
-                const $item = $(this).closest('.encuesta-item');
-                Swal.fire({
-                    title: '¿Eliminar esta encuesta?', text: "Esta acción es permanente y eliminará todas sus preguntas y respuestas.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        $.ajax({
-                            url: '../api/adminEliminarEncuesta.php',
-                            method: 'POST', contentType: 'application/json',
-                            data: JSON.stringify({ id_encuesta: idEncuesta }),
-                            success: function(res) {
-                                if (res.success) { Toast.fire({icon:'success', title: 'Encuesta eliminada.'}); $item.fadeOut(500, function() { $(this).remove(); }); } 
-                                else { Swal.fire('Error', res.mensaje, 'error'); }
-                            },
-                            error: function(jqXHR) { const msg = jqXHR.responseJSON?.mensaje || 'No se pudo conectar con el servidor.'; Swal.fire('Error', msg, 'error'); }
-                        });
-                    }
-                });
-            });
             
-            $('#dashboard-content-container').on('click', '.admin-ver-resultados', function(e) {
+            // Clic en "Ver Resultados"
+            $('#dashboard-content-container').on('click', '.btn-resultados, .admin-ver-resultados', function(e) {
                 e.stopPropagation();
                 const idEncuesta = $(this).data('id');
                 const tituloEncuesta = $(this).data('titulo');
-                cargarResultadosAdmin(idEncuesta, tituloEncuesta);
+                cargarResultadosAdmin(idEncuesta, tituloEncuesta); 
             });
             
+            // Clic en Pestañas de Resultados
             $('#dashboard-content-container').on('click', '.tab-buttons .tab-button-res', function(e) {
                 e.preventDefault(); const tabId = $(this).data('tab');
                 $(this).closest('.tab-buttons').find('.tab-button-res').removeClass('active');
@@ -899,6 +852,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
                 $(this).addClass('active'); $(`#tab-${tabId}`).addClass('active');
             });
             
+            // Clic en Link de Participante
             $('#dashboard-content-container').on('click', '.participante-link.admin-ver-respuestas', function(e) {
                 e.preventDefault();
                 const idEncuesta = $(this).data('id-encuesta'); const idAlumno = $(this).data('id-alumno'); const nombreAlumno = $(this).data('nombre-alumno');
@@ -917,25 +871,87 @@ $nombre = htmlspecialchars($usuario['nombre']);
             $('#dashboard-content-container').on('click', '.btn-add-opcion', function() { const $c = $(this).closest('.opciones-container'); const ip = $(this).closest('.pregunta-block').data('index'); const oi = $c.find('.opcion-item').length; agregarOpcion($c, ip, oi); $(this).appendTo($c); });
             $('#dashboard-content-container').on('click', '.btn-delete-opcion', function() { $(this).closest('.opcion-item').remove(); });
 
-            // Submit del Formulario Crear Encuesta (Admin usa la misma API)
+            // Submit del Formulario Crear Encuesta
             $('#dashboard-content-container').on('submit', '#form-crear-encuesta', function(e) {
                 e.preventDefault(); const datosEncuesta = { titulo: $('#titulo').val().trim(), descripcion: $('#descripcion').val().trim(), visibilidad: $('#visibilidad').val(), estado: $('#estado').val(), preguntas: [] };
                 if (!datosEncuesta.titulo) { Swal.fire('Error', 'Título obligatorio.', 'error'); $('#titulo').focus(); return; }
-                $('.pregunta-block').each(function(index) { const block = $(this); const textoPregunta = block.find('input[name*="[texto_pregunta]"]').val().trim(); const tipoPregunta = block.find('select[name*="[tipo_pregunta]"]').val(); if (!textoPregunta) { console.warn(`Pregunta ${index+1} ignorada.`); return; } const preguntaData = { texto_pregunta: textoPregunta, tipo_pregunta: tipoPregunta, orden: index + 1, opciones: [] }; block.find('.opcion-item input[type="text"]').each(function() { const textoOpcion = $(this).val().trim(); if (!$(this).prop('disabled') && textoOpcion !== "") { preguntaData.opciones.push({ texto_opcion: textoOpcion }); } }); if (tipoPregunta === 'si_no') { preguntaData.opciones.push({texto_opcion:'Verdadero'}); preguntaData.opciones.push({texto_opcion:'Falso'}); } else if (tipoPregunta === 'escala') { /* Opciones para escala se manejan en backend */ } datosEncuesta.preguntas.push(preguntaData); });
+                $('.pregunta-block').each(function(index) { const block = $(this); const textoPregunta = block.find('input[name*="[texto_pregunta]"]').val().trim(); const tipoPregunta = block.find('select[name*="[tipo_pregunta]"]').val(); if (!textoPregunta) { console.warn(`Pregunta ${index+1} ignorada.`); return; } const preguntaData = { texto_pregunta: textoPregunta, tipo_pregunta: tipoPregunta, orden: index + 1, opciones: [] }; block.find('.opcion-item input[type="text"]').each(function() { const textoOpcion = $(this).val().trim(); if (!$(this).prop('disabled') && textoOpcion !== "") { preguntaData.opciones.push({ texto_opcion: textoOpcion }); } }); if (tipoPregunta === 'si_no') { preguntaData.opciones.push({texto_opcion:'Verdadero'}); preguntaData.opciones.push({texto_opcion:'Falso'}); } else if (tipoPregunta === 'escala') { preguntaData.opciones.push({texto_opcion:'1', valor_escala: 1}); preguntaData.opciones.push({texto_opcion:'2', valor_escala: 2}); preguntaData.opciones.push({texto_opcion:'3', valor_escala: 3}); preguntaData.opciones.push({texto_opcion:'4', valor_escala: 4}); preguntaData.opciones.push({texto_opcion:'5', valor_escala: 5}); } datosEncuesta.preguntas.push(preguntaData); });
                 if (datosEncuesta.preguntas.length === 0) { Swal.fire('Error', 'Añade al menos una pregunta válida.', 'error'); return; }
                 const saveBtn = $('#publish-button-placeholder .btn-publish'); saveBtn.prop('disabled',true).html('<i class="fa-solid fa-spinner fa-spin"></i> Guardando...');
                 
                 $.ajax({ url: '../api/crearEncuesta.php', method: 'POST', contentType: 'application/json', data: JSON.stringify(datosEncuesta),
-                    success: function(res) { 
-                        if(res.success) { 
-                            Swal.fire('¡Guardado!', res.mensaje||'Ok.', 'success'); 
-                            cargarGestionEncuestas(); // Volver a la lista
-                        } else { 
-                            Swal.fire('Error al guardar', res.mensaje||'Ocurrió un error.', 'error'); 
-                            saveBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Guardar Encuesta'); 
-                        } 
-                    },
+                    success: function(res) { if(res.success) { Swal.fire('¡Guardado!', res.mensaje||'Ok.', 'success'); cargarGestionEncuestas(); } else { Swal.fire('Error al guardar', res.mensaje||'Ocurrió un error.', 'error'); saveBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Guardar Encuesta'); } },
                     error: function(jqXHR) { console.error("Error AJAX crear:", jqXHR.responseText); let msg='Error conexión.'; if(jqXHR.responseJSON&&jqXHR.responseJSON.mensaje){msg=jqXHR.responseJSON.mensaje;}else if(jqXHR.status===500){msg='Error servidor.';} Swal.fire('Error', msg, 'error'); saveBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Guardar Encuesta'); }
+                });
+            });
+
+            // --- ✅ NUEVOS MANEJADORES DE ENCUESTA (copiados de dashboard_general) ---
+            
+            // Clic en "Editar" (en cualquier lista de encuestas)
+            $('#dashboard-content-container').on('click', '.btn-editar', function(e) { 
+                e.stopPropagation();
+                cargarFormEditarAdmin($(this).data('id')); // Llama a la función de edición
+            });
+            
+            // Clic en "Publicar"
+            $('#dashboard-content-container').on('click', '.btn-publish-lista', function(e) { 
+                e.stopPropagation();
+                const id = $(this).data('id'); 
+                Swal.fire({ title: '¿Publicar?', text: "Los alumnos podrán ver esta encuesta. No podrás editarla después.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#28a745', confirmButtonText: 'Sí, Publicar', showLoaderOnConfirm: true, 
+                    preConfirm: () => $.ajax({ url: '../api/actualizarEstadoEncuesta.php', method: 'POST', contentType:'application/json', data: JSON.stringify({id_encuesta: id, nuevo_estado:'publicada'})}).catch(e=>Swal.showValidationMessage(`Error: ${e.statusText||'?'}`)), 
+                    allowOutsideClick:()=>!Swal.isLoading() 
+                }).then((r) => { if(r.isConfirmed&&r.value&&r.value.success) { Toast.fire({icon:'success',title:'Encuesta publicada.'}); cargarGestionEncuestas(); } else if(r.isConfirmed) Swal.fire('Error', r.value.mensaje||'?', 'error'); }); 
+            });
+            
+            // Clic en "Cerrar" / "Re-Publicar"
+            $('#dashboard-content-container').on('click', '.btn-cerrar', function(e) { 
+                e.stopPropagation();
+                const id = $(this).data('id'); 
+                const ne = $(this).data('nuevo-estado');
+                const $b = $(this).prop('disabled',true); 
+                $.ajax({ url: '../api/actualizarEstadoEncuesta.php', method: 'POST', contentType:'application/json', data: JSON.stringify({id_encuesta: id, nuevo_estado: ne}), 
+                    success: (r)=>{ if(r.success) { Toast.fire({icon:'success',title:`Encuesta ${ne}.`}); cargarGestionEncuestas(); } else { Toast.fire({icon:'error',title:r.mensaje}); $b.prop('disabled',false); }}, 
+                    error: ()=>{ Toast.fire({icon:'error',title:'Error conexión.'}); $b.prop('disabled',false); } 
+                }); 
+            });
+
+            // Clic en "Eliminar" (ahora usa la API de encuestador)
+            $('#dashboard-content-container').on('click', '.btn-eliminar', function(e) {
+                e.stopPropagation(); 
+                const idEncuesta = $(this).data('id');
+                const $item = $(this).closest('.encuesta-item');
+                Swal.fire({
+                    title: '¿Eliminar esta encuesta?', text: "Esta acción es permanente y eliminará todas sus preguntas y respuestas.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', cancelButtonColor: '#6c757d', confirmButtonText: 'Sí, eliminar', cancelButtonText: 'Cancelar'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $.ajax({
+                            url: '../api/eliminarEncuesta.php', // Usa la API del encuestador (permisos arreglados)
+                            method: 'POST', contentType: 'application/json',
+                            data: JSON.stringify({ id_encuesta: idEncuesta }),
+                            success: function(res) {
+                                if (res.success) { Toast.fire({icon:'success', title: 'Encuesta eliminada.'}); $item.fadeOut(500, function() { $(this).remove(); }); } 
+                                else { Swal.fire('Error', res.mensaje, 'error'); }
+                            },
+                            error: function(jqXHR) { const msg = jqXHR.responseJSON?.mensaje || 'No se pudo conectar con el servidor.'; Swal.fire('Error', msg, 'error'); }
+                        });
+                    }
+                });
+            });
+
+            // Submit del Formulario EDITAR Encuesta
+             $('#dashboard-content-container').on('submit', '#form-editar-encuesta', function(e) {
+                e.preventDefault();
+                const datosActualizados = { id_encuesta: $(this).find('input[name="id_encuesta"]').val(), titulo: $('#titulo').val().trim(), descripcion: $('#descripcion').val().trim(), visibilidad: $('#visibilidad').val(), estado: 'borrador', preguntas: [] };
+                if (!datosActualizados.titulo) { Swal.fire('Error', 'Título obligatorio.', 'error'); $('#titulo').focus(); return; }
+                $('.pregunta-block').each(function(index) { const block = $(this); const textoPregunta = block.find('input[name*="[texto_pregunta]"]').val().trim(); const tipoPregunta = block.find('select[name*="[tipo_pregunta]"]').val(); if (!textoPregunta) return; const preguntaData = { texto_pregunta: textoPregunta, tipo_pregunta: tipoPregunta, orden: index + 1, opciones: [] }; block.find('.opcion-item input[type="text"]').each(function() { const textoOpcion = $(this).val().trim(); if (!$(this).prop('disabled') && textoOpcion !== "") { preguntaData.opciones.push({ texto_opcion: textoOpcion }); } }); if (tipoPregunta === 'si_no') { preguntaData.opciones.push({texto_opcion:'Verdadero'}); preguntaData.opciones.push({texto_opcion:'Falso'}); } else if (tipoPregunta === 'escala') { /* Opciones de escala se manejan en backend */ } datosActualizados.preguntas.push(preguntaData); });
+                if (datosActualizados.preguntas.length === 0) { Swal.fire('Error', 'Añade al menos una pregunta válida.', 'error'); return; }
+                const updateBtn = $('#publish-button-placeholder .btn-publish'); updateBtn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Actualizando...');
+                
+                $.ajax({ 
+                    url: '../api/actualizarEncuestaBorrador.php', // API que acabamos de crear
+                    method: 'POST', contentType: 'application/json', data: JSON.stringify(datosActualizados), 
+                    success: function(res) { if (res.success) { Swal.fire('¡Actualizado!', 'Borrador guardado.', 'success'); cargarGestionEncuestas(); } else { Swal.fire('Error', res.mensaje, 'error'); updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); } }, 
+                    error: function() { Swal.fire('Error', 'Conexión fallida.', 'error'); updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); } 
                 });
             });
 

@@ -8,8 +8,7 @@ require_once '../config/db.php';
 require_once '../controllers/EncuestaController.php'; // Usamos el mismo controlador
 
 // --- Seguridad: Solo Encuestadores ---
-if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] !== 'encuestador') {
-    http_response_code(403); // Forbidden
+if (!isset($_SESSION['usuario']) || ($_SESSION['usuario']['rol'] !== 'encuestador' && $_SESSION['usuario']['rol'] !== 'administrador')) {    http_response_code(403); // Forbidden
     echo json_encode(['success' => false, 'mensaje' => 'Acceso denegado.']);
     exit();
 }
@@ -31,7 +30,7 @@ $id_encuestador = $_SESSION['usuario']['id_usuario']; // De la sesión
 
 $controlador = new EncuestaController($conexion);
 // Llamar a la nueva función del controlador
-$respuesta = $controlador->obtenerEncuestaParaEditar($id_encuesta, $id_encuestador);
+$respuesta = $controlador->obtenerEncuestaParaEditar($id_encuesta, $id_encuestador, $_SESSION['usuario']['rol']);
 
 http_response_code($respuesta['estado']);
 echo json_encode($respuesta);
