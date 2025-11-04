@@ -1,23 +1,17 @@
 <?php
 session_start();
-
-// --- ✅ CORRECCIÓN DE ROL ---
-// Verificar si hay sesión Y si el rol es 'administrator'
 if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] !== 'administrador') {
-    // Si no es admin, lo sacamos al login (incluso si es alumno o encuestador)
     header("Location: login.php");
     exit();
 }
-// --- FIN CORRECCIÓN ---
-
-// Si llegamos aquí, es admin.
 $usuario = $_SESSION['usuario'];
 $nombre = htmlspecialchars($usuario['nombre']);
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
-   <meta charset="UTF-8">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Administrador</title>
 
     <link rel="stylesheet" href="../css/style.css">
@@ -25,14 +19,12 @@ $nombre = htmlspecialchars($usuario['nombre']);
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <style>
-        /* Reseteo del body */
-        body { display: block; justify-content: normal; align-items: normal; padding: 0; background-color: #f4f7f6; font-family: Arial, sans-serif; margin: 0; }
+        /* (Estilos del dashboard - omitidos por brevedad, son los mismos que ya tenías) */
+        body { display: block; padding: 0; background-color: #f4f7f6; font-family: Arial, sans-serif; margin: 0; }
         .dashboard-wrapper { display: flex; flex-direction: column; min-height: 100vh; }
-
-        /* Cabecera */
         .dashboard-header { background: #fff; border-bottom: 1px solid #ddd; padding: 0 30px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; width: 100%; box-sizing: border-box; min-height: 60px; }
         .header-left-group { display: flex; align-items: center; height: 100%; }
         .header-logo { font-size: 1.5rem; font-weight: bold; color: #333; margin-right: 30px; cursor: pointer; }
@@ -46,19 +38,13 @@ $nombre = htmlspecialchars($usuario['nombre']);
         .user-profile { display: flex; align-items: center; gap: 5px; } .user-profile span { font-size: 0.9rem; color: #333; } .user-profile i { margin-right: 5px; }
         .dashboard-content { margin: 20px; padding: 0; width: auto; flex-grow: 1; }
         #loading { text-align: center; padding: 40px; font-size: 1.2em; color: #666; }
-        
-        /* Formulario Admin */
         .admin-form-container { max-width: 600px; margin: 20px auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .admin-form-container h2 { text-align: center; margin-bottom: 20px; }
         .admin-form-container .form-group { margin-bottom: 15px; }
         .admin-form-container .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
         .admin-form-container .form-group input,
         .admin-form-container .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .admin-form-container .btn-crear-encuestador { width: 100%; padding: 12px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1.1rem; font-weight: 500; }
-        .admin-form-container .btn-crear-encuestador:disabled { background-color: #aaa; }
         .password-hint { font-size: 0.85em; color: #666; margin-top: 5px;}
-
-        /* Acordeón Encuestadores */
         .encuestador-acordeon { background-color: #f1f1f1; color: #444; cursor: pointer; padding: 18px; width: 100%; border: none; text-align: left; outline: none; font-size: 1.1rem; transition: background-color 0.3s ease; display: flex; justify-content: space-between; align-items: center; border-radius: 5px; margin-bottom: 2px;}
         .encuestador-acordeon:hover { background-color: #ddd; }
         .encuestador-acordeon.active { background-color: #ccc; border-radius: 5px 5px 0 0; }
@@ -73,9 +59,6 @@ $nombre = htmlspecialchars($usuario['nombre']);
         .encuesta-acciones { display: flex; gap: 5px; margin-top: 10px;}
         .encuesta-acciones button { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 5px; }
         .btn-resultados { background-color: #17a2b8; }
-        @media (min-width: 768px) { .panel-encuestas .encuesta-item { flex-direction: row; align-items: center; } .encuesta-info { margin-bottom: 0; } .encuesta-acciones { margin-top: 0; } }
-
-        /* Estilos Vista Resultados */
         .resultados-container { background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .resultados-header h2 { margin-bottom: 5px; } .resultados-header p { color: #666; margin-bottom: 20px; }
         .pie-chart-container { max-width: 300px; margin: 20px auto; }
@@ -93,127 +76,95 @@ $nombre = htmlspecialchars($usuario['nombre']);
         .pregunta-resultado-abierta h4 { font-size: 1.1rem; margin-bottom: 10px; }
         .lista-participantes { list-style: none; padding: 0; margin: 0; } .lista-participantes li { border-bottom: 1px solid #f0f0f0; } .participante-link { display: block; padding: 12px 10px; text-decoration: none; color: #333; transition: background-color 0.2s ease; border-radius: 4px; } .participante-link:hover { background-color: #f8f9fa; color: #007bff; } .participante-link i { margin-right: 10px; color: #6c757d; }
         .swal-form-respuestas { text-align: left; max-height: 50vh; overflow-y: auto; padding: 5px 15px; margin-top: -10px; } .swal-pregunta-item { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; } .swal-pregunta-item:last-child { border-bottom: none; margin-bottom: 0; } .swal-pregunta-item h4 { font-size: 1.1em; color: #333; margin-bottom: 10px; } .swal-opcion-item { font-size: 1em; color: #888; margin-left: 10px; padding: 5px; display: flex; align-items: center; gap: 10px; } .swal-opcion-item.selected { font-weight: bold; color: #007bff; background-color: #e3f2fd; border-radius: 4px; } .swal-opcion-item i { color: #007bff; font-size: 0.9em; } .swal-opcion-item i.fa-circle, .swal-opcion-item i.fa-square { color: #ccc; } .swal-respuesta-abierta-display { font-style: italic; color: #333; background: #f8f9fa; border: 1px solid #eee; border-radius: 4px; padding: 10px; margin-top: 5px; width: 95%; }
+        .stats-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .stat-card { background: #fff; padding: 20px 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .stat-card h3 { margin-top: 0; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #333; }
+        .stats-grid .pie-chart-container { max-width: 350px; height: 350px; margin: 20px auto; }
+        .stats-grid .bar-chart-container { width: 100%; height: 350px; margin: 20px auto; }
+        @media (min-width: 992px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
         
-        /* Media Queries Responsivas */
-        @media (max-width: 768px) { .dashboard-header { flex-direction: column; padding: 10px; min-height: auto; align-items: stretch;} .header-left-group { width: 100%; justify-content: space-between; margin-bottom: 10px;} .header-right-group { width: 100%; justify-content: space-between; } .dashboard-tabs { justify-content: center; } .header-logo { margin-right: 0; } }
-        @media (max-width: 480px) { .dashboard-tabs { flex-wrap: wrap; justify-content: center;} .tab-link { font-size: 0.9rem; padding: 10px 8px; } .header-logo { font-size: 1.2rem; } .btn-logout, .user-profile span { font-size: 0.8rem;} .btn-publish { font-size: 0.8rem; padding: 6px 10px;} .encuesta-acciones button, .encuesta-acciones a { font-size: 0.8rem; padding: 6px 8px; } .tab-button-res { font-size: 0.95rem; padding: 10px 15px; } }
-        /* --- NUEVO: Estilos para Pestañas Internas (Gestión de Usuarios) --- */
-        .inner-tabs-container {
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            margin: 20px auto;
-            max-width: 800px; /* Centrar el contenedor de pestañas */
+        /* --- ✅ NUEVOS ESTILOS PARA GESTIÓN DE USUARIOS --- */
+        .gestion-usuarios-container { max-width: 1000px; margin: 0 auto; }
+        .add-user-toggle {
+            background-color: #007bff; color: white; border: none; padding: 10px 15px; font-size: 1rem;
+            border-radius: 5px; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
         }
-        .inner-tab-buttons {
-            display: flex;
-            border-bottom: 2px solid #eee;
-            padding: 5px 10px 0 10px;
-        }
-        .inner-tab-link {
-            padding: 12px 20px;
-            border: none;
-            background: none;
-            cursor: pointer;
-            font-size: 1rem;
-            color: #555;
-            font-weight: 500;
-            border-bottom: 3px solid transparent;
-            margin-bottom: -2px; /* Alinear con borde */
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .inner-tab-link.active {
-            color: #007bff;
-            border-bottom-color: #007bff;
-        }
-        .inner-tab-content {
-            padding: 25px;
-        }
-        .inner-tab-pane {
-            display: none;
-        }
-        .inner-tab-pane.active {
-            display: block;
-        }
-        /* Botón genérico para formularios internos */
-        .btn-crear-usuario {
-             width: 100%; padding: 12px; color: white;
-            border: none; border-radius: 5px; cursor: pointer; font-size: 1.1rem;
-            font-weight: 500;
-        }
+        .add-user-toggle i { transition: transform 0.3s ease; }
+        .add-user-toggle.open i { transform: rotate(180deg); }
+        .form-accordion-content { display: none; } /* Oculto por defecto */
+        .inner-tabs-container { background: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .inner-tab-buttons { display: flex; border-bottom: 2px solid #eee; padding: 5px 10px 0 10px; }
+        .inner-tab-link { padding: 12px 20px; border: none; background: none; cursor: pointer; font-size: 1rem; color: #555; font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -2px; display: flex; align-items: center; gap: 8px; }
+        .inner-tab-link.active { color: #007bff; border-bottom-color: #007bff; }
+        .inner-tab-content { padding: 25px; }
+        .inner-tab-pane { display: none; } .inner-tab-pane.active { display: block; }
+        .btn-crear-usuario { width: 100%; padding: 12px; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1.1rem; font-weight: 500; }
         .btn-crear-usuario:disabled { background-color: #aaa; }
         .btn-crear-encuestador { background-color: #28a745; } /* Verde */
         .btn-crear-alumno { background-color: #007bff; } /* Azul */
-
-        /* --- NUEVO: Estilos para la página de Estadísticas --- */
-        .stats-grid {
-            display: grid;
-            /* Usar 1 columna en móvil, 2 en pantallas más grandes */
-            grid-template-columns: 1fr;
-            gap: 20px;
+        
+        /* Estilos para la nueva tabla de usuarios */
+        .user-list-container { margin-top: 30px; }
+        .user-list-tabs { display: flex; border-bottom: 2px solid #ccc; }
+        .user-tab-link { padding: 10px 20px; cursor: pointer; font-size: 1.1rem; font-weight: 500; color: #666; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+        .user-tab-link.active { color: #333; border-bottom-color: #333; }
+        .user-list-content { background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-radius: 0 8px 8px 8px; }
+        .user-list-pane { display: none; padding: 10px; } .user-list-pane.active { display: block; }
+        .user-table { width: 100%; border-collapse: collapse; }
+        .user-table th, .user-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; }
+        .user-table th { background-color: #f8f9fa; }
+        .user-table .actions { display: flex; gap: 10px; }
+        .user-table .btn-edit, .user-table .btn-delete {
+            padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; color: white;
         }
-        .stat-card {
-            background: #fff;
-            padding: 20px 25px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        .user-table .btn-edit { background-color: #ffc107; } /* Amarillo */
+        .user-table .btn-delete { background-color: #dc3545; } /* Rojo */
+        
+        /* Estilos para el modal de edición */
+        .swal-edit-form { text-align: left; }
+        .swal-edit-form .form-group { margin-bottom: 15px; }
+        .swal-edit-form .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
+        .swal-edit-form .form-group input, .swal-edit-form .form-group select {
+            width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
         }
-        .stat-card h3 {
-            margin-top: 0;
-            text-align: center;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-            color: #333;
+        
+        @media (max-width: 768px) { 
+            .dashboard-header { flex-direction: column; padding: 10px; min-height: auto; align-items: stretch;} .header-left-group { width: 100%; justify-content: space-between; margin-bottom: 10px;} .header-right-group { width: 100%; justify-content: space-between; } .dashboard-tabs { justify-content: center; } .header-logo { margin-right: 0; }
+            .user-table { font-size: 0.9rem; }
+            .user-table th, .user-table td { padding: 8px; }
+            .user-table .actions { flex-direction: column; }
         }
-        /* Ajustar contenedores de gráficos para la cuadrícula */
-        .stats-grid .pie-chart-container {
-            max-width: 350px;
-            height: 350px;
-            margin: 20px auto;
-        }
-        .stats-grid .bar-chart-container {
-            width: 100%;
-            height: 350px;
-            margin: 20px auto;
-        }
-        /* Media query para 2 columnas */
-        @media (min-width: 992px) {
-            .stats-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
+        @media (max-width: 480px) { .dashboard-tabs { flex-wrap: wrap; justify-content: center;} .tab-link { font-size: 0.9rem; padding: 10px 8px; } .header-logo { font-size: 1.2rem; } .btn-logout, .user-profile span { font-size: 0.8rem;} .tab-button-res { font-size: 0.95rem; padding: 10px 15px; } }
     </style>
 </head>
 <body>
     <div class="dashboard-wrapper">
         <header class="dashboard-header">
-        <div class="header-left-group">
-            <div class="header-logo">Panel Admin</div>
-            <nav class="dashboard-tabs">
-                <a href="#" class="tab-link active" id="btn-tab-estadisticas">
-                    <i class="fa-solid fa-chart-line"></i> Estadísticas
-                </a>
-                <a href="#" class="tab-link" id="btn-tab-gestion-usuarios">
-                    <i class="fa-solid fa-users-cog"></i> Gestión de Usuarios
-                </a>
-                <a href="#" class="tab-link" id="btn-tab-gestion-encuestas">
-                    <i class="fa-solid fa-list-ul"></i> Gestión de Encuestas
-                </a>
-            </nav>
-        </div>
-        <div class="header-right-group">
-            <a href="logout.php" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
-            <div class="user-profile"><i class="fa-solid fa-shield-halved"></i> <span><?php echo $nombre; ?></span></div>
-        </div>
-    </header>
+            <div class="header-left-group">
+                <div class="header-logo">Panel Admin</div>
+                <nav class="dashboard-tabs">
+                    <a href="#" class="tab-link active" id="btn-tab-estadisticas">
+                        <i class="fa-solid fa-chart-line"></i> Estadísticas
+                    </a>
+                    <a href="#" class="tab-link" id="btn-tab-gestion-usuarios">
+                        <i class="fa-solid fa-users-cog"></i> Gestión de Usuarios
+                    </a>
+                    <a href="#" class="tab-link" id="btn-tab-gestion-encuestas">
+                        <i class="fa-solid fa-list-ul"></i> Gestión de Encuestas
+                    </a>
+                </nav>
+            </div>
+            <div class="header-right-group">
+                <a href="logout.php" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
+                <div class="user-profile"><i class="fa-solid fa-shield-halved"></i> <span><?php echo $nombre; ?></span></div>
+            </div>
+        </header>
 
         <main class="dashboard-content" id="dashboard-content-container">
             </main>
     </div>
 
-   <script>
+    <script>
         // Configuración global de Toasts
         const Toast = Swal.mixin({
             toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true,
@@ -298,62 +249,153 @@ $nombre = htmlspecialchars($usuario['nombre']);
         function cargarGestionUsuarios() {
             activarTab('#btn-tab-gestion-usuarios');
             const container = $('#dashboard-content-container');
-            const formHtml = `
-                <div class="inner-tabs-container">
-                    <div class="inner-tab-buttons">
-                        <button class="inner-tab-link active" data-tab="crear-encuestador"><i class="fa-solid fa-user-tie"></i> Registrar Encuestador</button>
-                        <button class="inner-tab-link" data-tab="crear-alumno"><i class="fa-solid fa-user-graduate"></i> Registrar Alumno</button>
-                    </div>
-                    <div class="inner-tab-content">
-                        <div id="tab-crear-encuestador" class="inner-tab-pane active">
-                            <form id="form-crear-encuestador">
-                                <h2 style="text-align: center; margin-bottom: 20px;">Registrar Nuevo Encuestador (Maestro)</h2>
-                                <div class="form-group"><label for="admin-nombre-enc">Nombres</label><input type="text" id="admin-nombre-enc" required></div>
-                                <div class="form-group"><label for="admin-apellido-enc">Apellidos</label><input type="text" id="admin-apellido-enc" required></div>
-                                <div class="form-group"><label for="admin-email-enc">Correo Electrónico</label><input type="email" id="admin-email-enc" placeholder="ejemplo@tecmerida.com" required></div>
-                                <div class="form-group"><label for="admin-asignatura-enc">carrera</label><input type="text" id="admin-carrera-enc" required></div>                                
-                                <div class="form-group"><label for="admin-asignatura-enc">Materia (Asignatura)</label><input type="text" id="admin-asignatura-enc" required></div>
-                                <div class="form-group"><label for="admin-contrasena-enc">Contraseña Temporal</label><input type="password" id="admin-contrasena-enc" required><div class="password-hint">Debe cumplir: 8+ carac, 1 especial, termina en "AL"</div></div>
-                                <button type="submit" class="btn-crear-usuario btn-crear-encuestador"><i class="fa-solid fa-user-plus"></i> Crear Encuestador</button>
-                            </form>
+            
+            // HTML para el acordeón y las tablas
+            const html = `
+                <div class="gestion-usuarios-container">
+                    
+                    <button id="btn-toggle-forms" class="add-user-toggle">
+                        <i class="fa-solid fa-plus"></i> Añadir Nuevo Usuario
+                    </button>
+
+                    <div id="form-accordion-content" class="form-accordion-content">
+                        <div class="inner-tabs-container">
+                            <div class="inner-tab-buttons">
+                                <button class="inner-tab-link active" data-tab="crear-encuestador"><i class="fa-solid fa-user-tie"></i> Registrar Encuestador</button>
+                                <button class="inner-tab-link" data-tab="crear-alumno"><i class="fa-solid fa-user-graduate"></i> Registrar Alumno</button>
+                            </div>
+                            <div class="inner-tab-content">
+                                <div id="tab-crear-encuestador" class="inner-tab-pane active">
+                                    <form id="form-crear-encuestador">
+                                        <h2 style="text-align: center; margin-bottom: 20px;">Registrar Nuevo Encuestador (Maestro)</h2>
+                                        <div class="form-group"><label for="admin-nombre-enc">Nombres</label><input type="text" id="admin-nombre-enc" required></div>
+                                        <div class="form-group"><label for="admin-apellido-enc">Apellidos</label><input type="text" id="admin-apellido-enc" required></div>
+                                        <div class="form-group"><label for="admin-email-enc">Correo Electrónico</label><input type="email" id="admin-email-enc" placeholder="ejemplo@tecmerida.com" required></div>
+                                        <div class="form-group"><label for="admin-asignatura-enc">carrera</label><input type="text" id="admin-carrera-enc" required></div>                                        
+                                        <div class="form-group"><label for="admin-asignatura-enc">Materia (Asignatura)</label><input type="text" id="admin-asignatura-enc" required></div>
+                                        <div class="form-group"><label for="admin-contrasena-enc">Contraseña Temporal</label><input type="password" id="admin-contrasena-enc" required><div class="password-hint">Debe cumplir: 8+ carac, 1 especial, termina en "AL"</div></div>
+                                        <button type="submit" class="btn-crear-usuario btn-crear-encuestador"><i class="fa-solid fa-user-plus"></i> Crear Encuestador</button>
+                                    </form>
+                                </div>
+                                <div id="tab-crear-alumno" class="inner-tab-pane">
+                                    <form id="form-crear-alumno">
+                                        <h2 style="text-align: center; margin-bottom: 20px;">Registrar Nuevo Alumno</h2>
+                                        <div class="form-group"><label for="admin-nombre-alu">Nombres</label><input type="text" id="admin-nombre-alu" required></div>
+                                        <div class="form-group"><label for="admin-apellido-alu">Apellidos</label><input type="text" id="admin-apellido-alu" required></div>
+                                        <div class="form-group"><label for="admin-email-alu">Correo Electrónico</label><input type="email" id="admin-email-alu" required></div>
+                                        <div class="form-group"><label for="admin-carrera-alu">Carrera</label>
+                                            <select id="admin-carrera-alu" name="carrera" required>
+                                                <option value="">Seleccione Carrera</option>
+                                                <option value="ingenieria-sistemas">Ingeniería en Sistemas</option>
+                                                <option value="ingenieria-civil">Ingeniería Civil</option>
+                                                <option value="medicina">Medicina</option>
+                                                <option value="derecho">Derecho</option>
+                                                <option value="administracion">Administración</option>
+                                                <option value="contabilidad">Contabilidad</option>
+                                                <option value="psicologia">Psicología</option>
+                                                <option value="arquitectura">Arquitectura</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group"><label for="admin-genero-alu">Género</label>
+                                            <select id="admin-genero-alu" required>
+                                                <option value="" disabled selected>Seleccione...</option>
+                                                <option value="hombre">Hombre</option>
+                                                <option value="mujer">Mujer</option>
+                                                <option value="otro">Otro</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group"><label for="admin-contrasena-alu">Contraseña</label><input type="password" id="admin-contrasena-alu" required><div class="password-hint">Debe cumplir: 8+ carac, 1 especial, termina en "AL"</div></div>
+                                        <div class="form-group"><label for="admin-confirmar-alu">Confirmar Contraseña</label><input type="password" id="admin-confirmar-alu" required></div>
+                                        <button type="submit" class="btn-crear-usuario btn-crear-alumno"><i class="fa-solid fa-user-plus"></i> Crear Alumno</button>
+                                    </form>
+                                </div>
+                            </div>
                         </div>
-                        <div id="tab-crear-alumno" class="inner-tab-pane">
-                            <form id="form-crear-alumno">
-                                <h2 style="text-align: center; margin-bottom: 20px;">Registrar Nuevo Alumno</h2>
-                                <div class="form-group"><label for="admin-nombre-alu">Nombres</label><input type="text" id="admin-nombre-alu" required></div>
-                                <div class="form-group"><label for="admin-apellido-alu">Apellidos</label><input type="text" id="admin-apellido-alu" required></div>
-                                <div class="form-group"><label for="admin-email-alu">Correo Electrónico</label><input type="email" id="admin-email-alu" required></div>
-                                <div class="form-group"><label for="admin-carrera-alu">Carrera</label>
-                                    <select id="admin-carrera-alu" name="carrera" required>
-                                        <option value="">Seleccione Carrera</option>
-                                        <option value="ingenieria-sistemas">Ingeniería en Sistemas</option>
-                                        <option value="ingenieria-civil">Ingeniería Civil</option>
-                                        <option value="medicina">Medicina</option>
-                                        <option value="derecho">Derecho</option>
-                                        <option value="administracion">Administración</option>
-                                        <option value="contabilidad">Contabilidad</option>
-                                        <option value="psicologia">Psicología</option>
-                                        <option value="arquitectura">Arquitectura</option>
-                                    </select>
-                                </div>
-                                <div class="form-group"><label for="admin-genero-alu">Género</label>
-                                    <select id="admin-genero-alu" required>
-                                        <option value="" disabled selected>Seleccione...</option>
-                                        <option value="hombre">Hombre</option>
-                                        <option value="mujer">Mujer</option>
-                                        <option value="otro">Otro</option>
-                                    </select>
-                                </div>
-                                <div class="form-group"><label for="admin-contrasena-alu">Contraseña</label><input type="password" id="admin-contrasena-alu" required><div class="password-hint">Debe cumplir: 8+ carac, 1 especial, termina en "AL"</div></div>
-                                <div class="form-group"><label for="admin-confirmar-alu">Confirmar Contraseña</label><input type="password" id="admin-confirmar-alu" required></div>
-                                <button type="submit" class="btn-crear-usuario btn-crear-alumno"><i class="fa-solid fa-user-plus"></i> Crear Alumno</button>
-                            </form>
+                    </div>
+
+                    <div class="user-list-container">
+                        <div class="user-list-tabs">
+                            <button class="user-tab-link active" data-tab="lista-encuestadores">Encuestadores</button>
+                            <button class="user-tab-link" data-tab="lista-alumnos">Alumnos</button>
+                        </div>
+                        <div class="user-list-content">
+                            <div id="tab-lista-encuestadores" class="user-list-pane active">
+                                <div id="loading-encuestadores" style="text-align:center; padding:20px;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</div>
+                                <table class="user-table" id="tabla-encuestadores" style="width:100%;">
+                                    <thead><tr><th>Nombre</th><th>Correo</th><th>Asignatura</th><th>Acciones</th></tr></thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                            <div id="tab-lista-alumnos" class="user-list-pane">
+                                <div id="loading-alumnos" style="text-align:center; padding:20px;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</div>
+                                <table class="user-table" id="tabla-alumnos" style="width:100%;">
+                                    <thead><tr><th>Nombre</th><th>Correo</th><th>Carrera</th><th>Acciones</th></tr></thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>`;
-            container.html(formHtml);
+            container.html(html);
+            
+            cargarTablaEncuestadores();
+            cargarTablaAlumnos();
         }
 
+        // --- Funciones Auxiliares para Gestión de Usuarios ---
+        function cargarTablaEncuestadores() {
+            $('#loading-encuestadores').show();
+            $.ajax({
+                url: '../api/adminListarEncuestadores.php', method: 'GET', dataType: 'json',
+                success: function(res) {
+                    const $tbody = $('#tabla-encuestadores tbody').empty();
+                    $('#loading-encuestadores').hide();
+                    if (res.success && res.encuestadores.length > 0) {
+                        res.encuestadores.forEach(user => {
+                            $tbody.append(`
+                                <tr data-id="${user.id_usuario}">
+                                    <td>${user.apellido}, ${user.nombre}</td>
+                                    <td>${user.email}</td>
+                                    <td>${user.asignatura || 'N/A'}</td>
+                                    <td class="actions">
+                                        <button class="btn-edit" data-id="${user.id_usuario}" data-rol="encuestador" title="Editar"><i class="fa-solid fa-pencil"></i></button>
+                                        <button class="btn-delete" data-id="${user.id_usuario}" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                                    </td>
+                                </tr>`);
+                        });
+                    } else {
+                        $tbody.append('<tr><td colspan="4" style="text-align:center; padding: 20px;">No hay encuestadores registrados.</td></tr>');
+                    }
+                }
+            });
+        }
+        function cargarTablaAlumnos() {
+             $('#loading-alumnos').show();
+            $.ajax({
+                url: '../api/adminListarAlumnos.php', method: 'GET', dataType: 'json',
+                success: function(res) {
+                    const $tbody = $('#tabla-alumnos tbody').empty();
+                     $('#loading-alumnos').hide();
+                    if (res.success && res.alumnos.length > 0) {
+                        res.alumnos.forEach(user => {
+                            $tbody.append(`
+                                <tr data-id="${user.id_usuario}">
+                                    <td>${user.apellido}, ${user.nombre}</td>
+                                    <td>${user.email}</td>
+                                    <td>${user.carrera || 'N/A'}</td>
+                                    <td class="actions">
+                                        <button class="btn-edit" data-id="${user.id_usuario}" data-rol="alumno" title="Editar"><i class="fa-solid fa-pencil"></i></button>
+                                        <button class="btn-delete" data-id="${user.id_usuario}" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                                    </td>
+                                </tr>`);
+                        });
+                    } else {
+                        $tbody.append('<tr><td colspan="4" style="text-align:center; padding: 20px;">No hay alumnos registrados.</td></tr>');
+                    }
+                }
+            });
+        }
+        
         // 2. Cargar "Gestión de Encuestas"
         function cargarGestionEncuestas() {
             activarTab('#btn-tab-gestion-encuestas');
@@ -514,7 +556,29 @@ $nombre = htmlspecialchars($usuario['nombre']);
             $('.header-logo').on('click', (e) => { e.preventDefault(); cargarEstadisticas(); });
             $('#dashboard-content-container').on('click', '#btn-back-to-encuestas', (e) => { e.preventDefault(); cargarGestionEncuestas(); });
 
-            // --- ✅ INICIO: MANEJADORES DE EVENTOS CORREGIDOS ---
+            // --- ✅ INICIO: GESTIÓN DE USUARIOS ---
+
+            // Botón Acordeón "Añadir Nuevo Usuario"
+            $('#dashboard-content-container').on('click', '#btn-toggle-forms', function() {
+                $(this).toggleClass('open');
+                $('#form-accordion-content').slideToggle();
+            });
+
+            // Pestañas Internas (Crear Encuestador / Crear Alumno)
+            $('#dashboard-content-container').on('click', '.inner-tab-link', function(e) {
+                e.preventDefault(); const tabId = $(this).data('tab');
+                $(this).siblings().removeClass('active');
+                $(this).closest('.inner-tabs-container').find('.inner-tab-pane').removeClass('active');
+                $(this).addClass('active'); $(`#tab-${tabId}`).addClass('active');
+            });
+
+            // Pestañas de Tablas (Lista Encuestadores / Lista Alumnos)
+            $('#dashboard-content-container').on('click', '.user-tab-link', function(e) {
+                e.preventDefault(); const tabId = $(this).data('tab');
+                $(this).siblings().removeClass('active');
+                $(this).closest('.user-list-container').find('.user-list-pane').removeClass('active');
+                $(this).addClass('active'); $(`#tab-${tabId}`).addClass('active');
+            });
 
             // Submit: Crear Encuestador
             $('#dashboard-content-container').on('submit', '#form-crear-encuestador', function(e) {
@@ -525,8 +589,8 @@ $nombre = htmlspecialchars($usuario['nombre']);
                     nombre: $('#admin-nombre-enc').val().trim(),
                     apellido: $('#admin-apellido-enc').val().trim(),
                     email: $('#admin-email-enc').val().trim(),
-                    asignatura: $('#admin-asignatura-enc').val().trim(),
                     carrera: $('#admin-carrera-enc').val().trim(),
+                    asignatura: $('#admin-asignatura-enc').val().trim(),
                     contrasena: $('#admin-contrasena-enc').val()
                 };
                 const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
@@ -537,7 +601,11 @@ $nombre = htmlspecialchars($usuario['nombre']);
                     url: '../api/adminCrearEncuestador.php', // API correcta
                     method: 'POST', contentType: 'application/json', data: JSON.stringify(datos),
                     success: function(response) { 
-                        if (response.success) { Swal.fire('¡Éxito!', 'Encuestador registrado.', 'success'); $('#form-crear-encuestador')[0].reset(); } 
+                        if (response.success) { 
+                            Swal.fire('¡Éxito!', 'Encuestador registrado.', 'success'); 
+                            $('#form-crear-encuestador')[0].reset(); 
+                            cargarTablaEncuestadores(); // Recargar la tabla
+                        } 
                         else { Swal.fire('Error', response.mensaje || 'No se pudo registrar.', 'error'); } 
                         $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); 
                     },
@@ -548,16 +616,8 @@ $nombre = htmlspecialchars($usuario['nombre']);
                 });
             });
 
-            // Evento para Pestañas Internas (Gestión de Usuarios)
-            $('#dashboard-content-container').on('click', '.inner-tab-link', function(e) {
-                e.preventDefault(); const tabId = $(this).data('tab');
-                $(this).siblings().removeClass('active');
-                $(this).closest('.inner-tabs-container').find('.inner-tab-pane').removeClass('active');
-                $(this).addClass('active'); $(`#tab-${tabId}`).addClass('active');
-            });
-
             // Submit del Formulario Crear Alumno
-           $('#dashboard-content-container').on('submit', '#form-crear-alumno', function(e) {
+            $('#dashboard-content-container').on('submit', '#form-crear-alumno', function(e) {
                 e.preventDefault();
                 const $button = $(this).find('.btn-crear-alumno');
                 $button.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Creando...');
@@ -566,31 +626,28 @@ $nombre = htmlspecialchars($usuario['nombre']);
                     nombre: $('#admin-nombre-alu').val().trim(), 
                     apellido: $('#admin-apellido-alu').val().trim(), 
                     email: $('#admin-email-alu').val().trim(), 
-                    carrera: $('#admin-carrera-alu').val(),
+                    carrera: $('#admin-carrera-alu').val(), 
                     genero: $('#admin-genero-alu').val(), 
                     contrasena: $('#admin-contrasena-alu').val(), 
-                    // ✅ ¡AQUÍ ESTÁ LA CORRECCIÓN! (sin guion bajo)
-                    confirmarContrasena: $('#admin-confirmar-alu').val() 
+                    confirmarContrasena: $('#admin-confirmar-alu').val() // camelCase
                 };
                 
                 // Validaciones
-                // ✅ CORRECCIÓN: Comprobar la nueva clave
-                if (datos.contrasena !== datos.confirmarContrasena) { 
-                    Swal.fire('Error', 'Las contraseñas no coinciden.', 'error'); 
-                    $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno'); 
-                    return; 
-                }
-                // ... (resto de validaciones) ...
+                if (datos.contrasena !== datos.confirmarContrasena) { Swal.fire('Error', 'Las contraseñas no coinciden.', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno'); return; }
                 const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
                 if (datos.contrasena.length < 8 || !datos.contrasena.toLowerCase().endsWith('al') || !specialCharRegex.test(datos.contrasena)) { Swal.fire('Error', 'La contraseña no cumple los requisitos (8+ carac, 1 especial, termina en "AL").', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno'); return; }
                 if (!datos.genero || datos.genero === "") { Swal.fire('Error', 'Debes seleccionar un género.', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno'); return; }
                 if (!datos.carrera || datos.carrera === "") { Swal.fire('Error', 'Debes seleccionar una carrera.', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno'); return; }
                 
                 $.ajax({
-                    url: '../api/registrarAlumno.php',
+                    url: '../api/registrarAlumno.php', // API correcta
                     method: 'POST', contentType: 'application/json', data: JSON.stringify(datos),
                     success: function(response) {
-                        if (response.success) { Swal.fire('¡Éxito!', 'Alumno registrado con éxito.', 'success'); $('#form-crear-alumno')[0].reset(); }
+                        if (response.success) { 
+                            Swal.fire('¡Éxito!', 'Alumno registrado con éxito.', 'success'); 
+                            $('#form-crear-alumno')[0].reset(); 
+                            cargarTablaAlumnos(); // Recargar la tabla
+                        }
                         else { Swal.fire('Error', response.mensaje || 'No se pudo registrar al alumno.', 'error'); }
                         $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Alumno');
                     },
@@ -604,9 +661,167 @@ $nombre = htmlspecialchars($usuario['nombre']);
                 });
             });
             
-            // --- FIN DE MANEJADORES CORREGIDOS ---
+            // Clic en "Eliminar" Usuario
+            $('#dashboard-content-container').on('click', '.btn-delete', function() {
+                const idUsuario = $(this).data('id');
+                const $fila = $(this).closest('tr');
+                
+                Swal.fire({
+                    title: '¿Estás seguro?',
+                    text: "Esta acción no se puede revertir. Se eliminará al usuario y todas sus respuestas.",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Sí, eliminar',
+                    cancelButtonText: 'Cancelar'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        $.ajax({
+                            url: '../api/adminEliminarUsuario.php',
+                            method: 'POST', contentType: 'application/json',
+                            data: JSON.stringify({ id_usuario: idUsuario }),
+                            success: function(res) {
+                                if (res.success) {
+                                    Toast.fire({icon:'success', title: 'Usuario eliminado.'});
+                                    $fila.fadeOut(500, function() { 
+                                        $(this).remove(); 
+                                        // Recargar ambas tablas para mantener consistencia (opcional pero bueno)
+                                        cargarTablaEncuestadores();
+                                        cargarTablaAlumnos();
+                                    });
+                                } else {
+                                    Swal.fire('Error', res.mensaje, 'error');
+                                }
+                            },
+                            error: function() { Swal.fire('Error', 'No se pudo conectar con el servidor.', 'error'); }
+                        });
+                    }
+                });
+            });
 
-            // Lógica de Acordeón (Gestión de Encuestas)
+            // Clic en "Editar" Usuario
+            $('#dashboard-content-container').on('click', '.btn-edit', function() {
+                const idUsuario = $(this).data('id');
+                const rol = $(this).data('rol');
+
+                // 1. Obtener datos actuales del usuario
+                $.ajax({
+                    url: `../api/adminObtenerUsuario.php?id_usuario=${idUsuario}`,
+                    method: 'GET', dataType: 'json',
+                    success: function(res) {
+                        if (!res.success) { Swal.fire('Error', res.mensaje, 'error'); return; }
+                        
+                        const user = res.usuario;
+                        let formHtml = '<form id="form-edit-usuario" class="swal-edit-form">';
+                        
+                        // Campos comunes
+                        formHtml += `
+                            <div class="form-group">
+                                <label>Nombre(s)</label>
+                                <input type="text" id="swal-nombre" value="${user.nombre}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Apellido(s)</label>
+                                <input type="text" id="swal-apellido" value="${user.apellido}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="swal-email" value="${user.email}" required>
+                            </div>
+                        `;
+                        
+                        // Campos específicos por rol
+                        if (rol === 'alumno') {
+                            formHtml += `
+                                <div class="form-group">
+                                    <label>Carrera</label>
+                                    <select id="swal-carrera" required>
+                                        <option value="ingenieria-sistemas" ${user.carrera === 'ingenieria-sistemas' ? 'selected' : ''}>Ingeniería en Sistemas</option>
+                                        <option value="ingenieria-civil" ${user.carrera === 'ingenieria-civil' ? 'selected' : ''}>Ingeniería Civil</option>
+                                        <option value="medicina" ${user.carrera === 'medicina' ? 'selected' : ''}>Medicina</option>
+                                        <option value="derecho" ${user.carrera === 'derecho' ? 'selected' : ''}>Derecho</option>
+                                        <option value="administracion" ${user.carrera === 'administracion' ? 'selected' : ''}>Administración</option>
+                                        <option value="contabilidad" ${user.carrera === 'contabilidad' ? 'selected' : ''}>Contabilidad</option>
+                                        <option value="psicologia" ${user.carrera === 'psicologia' ? 'selected' : ''}>Psicología</option>
+                                        <option value="arquitectura" ${user.carrera === 'arquitectura' ? 'selected' : ''}>Arquitectura</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Género</label>
+                                    <select id="swal-genero" required>
+                                        <option value="hombre" ${user.genero === 'hombre' ? 'selected' : ''}>Hombre</option>
+                                        <option value="mujer" ${user.genero === 'mujer' ? 'selected' : ''}>Mujer</option>
+                                        <option value="otro" ${user.genero === 'otro' ? 'selected' : ''}>Otro</option>
+                                    </select>
+                                </div>
+                            `;
+                        } else if (rol === 'encuestador') {
+                             formHtml += `
+                                <div class="form-group">
+                                    <label>carrera</label>
+                                    <input type="text" id="swal-carrera" value="${user.carrera || ''}" required>
+                                    <label>Asignatura</label>
+                                    <input type="text" id="swal-asignatura" value="${user.asignatura || ''}" required>
+                                </div>
+                             `;
+                        }
+                        formHtml += '</form>';
+
+                        // 2. Mostrar el Modal
+                        Swal.fire({
+                            title: `Editar Usuario (Rol: ${rol})`,
+                            html: formHtml,
+                            showCancelButton: true,
+                            confirmButtonText: 'Guardar Cambios',
+                            cancelButtonText: 'Cancelar',
+                            showLoaderOnConfirm: true,
+                            preConfirm: () => {
+                                // 3. Recolectar datos del modal
+                                const datosUpdate = {
+                                    id_usuario: idUsuario,
+                                    nombre: $('#swal-nombre').val(),
+                                    apellido: $('#swal-apellido').val(),
+                                    email: $('#swal-email').val()
+                                };
+                                if (rol === 'alumno') {
+                                    datosUpdate.carrera = $('#swal-carrera').val();
+                                    datosUpdate.genero = $('#swal-genero').val();
+                                } else if (rol === 'encuestador') {
+                                    datosUpdate.asignatura = $('#swal-asignatura').val();
+                                }
+                                
+                                // 4. Enviar a la API de edición
+                                return $.ajax({
+                                    url: '../api/adminEditarUsuario.php',
+                                    method: 'POST', contentType: 'application/json',
+                                    data: JSON.stringify(datosUpdate)
+                                }).fail(function(jqXHR) {
+                                    const msg = jqXHR.responseJSON?.mensaje || 'Error al guardar.';
+                                    Swal.showValidationMessage(msg);
+                                });
+                            }
+                        }).then((result) => {
+                            if (result.isConfirmed && result.value.success) {
+                                Toast.fire({icon: 'success', title: 'Usuario actualizado.'});
+                                // 5. Recargar ambas tablas
+                                cargarTablaEncuestadores();
+                                cargarTablaAlumnos();
+                            } else if (result.isConfirmed) {
+                                // Si la API devolvió success: false
+                                Swal.fire('Error', result.value.mensaje || 'No se pudo actualizar.', 'error');
+                            }
+                        });
+                    },
+                    error: () => { Swal.fire('Error', 'No se pudieron cargar los datos del usuario.', 'error'); }
+                });
+            });
+            
+            // --- FIN GESTIÓN DE USUARIOS ---
+
+            // --- GESTIÓN DE ENCUESTAS ---
+            
+            // Lógica de Acordeón
             $('#dashboard-content-container').on('click', '.encuestador-acordeon', function() {
                 const $button = $(this); const $panel = $button.next('.panel-encuestas'); const idEncuestador = $button.data('id');
                 $button.toggleClass('active');

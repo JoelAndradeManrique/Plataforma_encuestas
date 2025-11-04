@@ -560,5 +560,42 @@ class UsuarioController {
             return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al obtener la lista de encuestadores.'];
         }
     }
+
+    /**
+     * Obtiene una lista de todos los alumnos.
+     * @return array
+     */
+    public function listarAlumnos() {
+        try {
+            $alumnos = $this->modeloUsuario->getAlumnos(); // Necesitaremos crear 'getAlumnos' en el modelo
+            return ['estado' => 200, 'success' => true, 'alumnos' => $alumnos];
+        } catch (Exception $e) {
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al obtener la lista de alumnos.'];
+        }
+    }
+
+
+    /**
+     * Obtiene los datos de un solo usuario por ID (para editar).
+     * @param int $id_usuario
+     * @return array
+     */
+    public function obtenerUsuario($id_usuario) {
+        if (empty($id_usuario)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'ID de usuario no válido.'];
+        }
+        try {
+            // (La función 'getById' ya existe en tu modelo)
+            $usuario = $this->modeloUsuario->getById($id_usuario);
+            if ($usuario) {
+                return ['estado' => 200, 'success' => true, 'usuario' => $usuario];
+            } else {
+                return ['estado' => 404, 'success' => false, 'mensaje' => 'Usuario no encontrado.'];
+            }
+        } catch (Exception $e) {
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de base de datos.', 'error_db' => $e->getMessage()];
+        }
+    }
+
 }
 ?>

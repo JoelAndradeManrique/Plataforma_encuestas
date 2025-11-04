@@ -349,6 +349,25 @@ class Usuario {
         $stmt->close();
         return $encuestadores;
     }
+
+    /**
+     * Obtiene una lista de todos los usuarios con rol 'alumno'.
+     * @return array
+     */
+    public function getAlumnos() {
+        // Asumiendo que el rol se llama 'alumno' en tu ENUM
+        $query = "SELECT id_usuario, nombre, apellido, email, carrera, genero 
+                  FROM usuarios 
+                  WHERE rol = 'alumno' 
+                  ORDER BY apellido, nombre";
+        $stmt = $this->conexion->prepare($query);
+        if (!$stmt) { error_log("Prepare failed (getAlumnos): ".$this->conexion->error); return []; }
+        $stmt->execute();
+        $resultado = $stmt->get_result();
+        $alumnos = $resultado->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $alumnos;
+    }
 }
 
 ?>
