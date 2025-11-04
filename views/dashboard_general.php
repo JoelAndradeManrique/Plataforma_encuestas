@@ -385,34 +385,44 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
             $(`.pregunta-block[data-index="${index}"] .tipo-pregunta-selector`).trigger('change');
         }
         function agregarPreguntaConDatos(pregunta) {
-            const index = preguntaIndex++;
-             const tipoOptions = [
-                {value: 'opcion_multiple', text: 'Opción Múltiple'},
-                {value: 'seleccion_multiple', text: 'Selección Múltiple'},
-                {value: 'abierta', text: 'Respuesta Corta'},
-                {value: 'si_no', text: 'Verdadero / Falso'},
-                {value: 'escala', text: 'Escala (1-5)'}
-            ].map(tipo => {
-                return `<option value="${tipo.value}" ${pregunta.tipo_pregunta === tipo.value ? 'selected' : ''}>${tipo.text}</option>`;
-            }).join('');
-            
-            // Escapar texto
-            const textoPreguntaEscapado = $('<div>').text(pregunta.texto_pregunta || '').attr('value');
-            
-            const preguntaHtml = `<div class="pregunta-block" data-index="${index}"><div class="pregunta-header"><input type="text" name="preguntas[${index}][texto_pregunta]" placeholder="Pregunta sin título" value="${textoPreguntaEscapado}" required><select name="preguntas[${index}][tipo_pregunta]" class="tipo-pregunta-selector">${tipoOptions}</select></div><div class="opciones-container"></div><div class="pregunta-footer"><button type="button" class="btn-delete-pregunta" title="Eliminar Pregunta"><i class="fa-solid fa-trash-alt"></i></button></div></div>`;
+            const index = preguntaIndex++;
+             const tipoOptions = [
+                {value: 'opcion_multiple', text: 'Opción Múltiple'},
+                {value: 'seleccion_multiple', text: 'Selección Múltiple'},
+                {value: 'abierta', text: 'Respuesta Corta'},
+                {value: 'si_no', text: 'Verdadero / Falso'},
+                {value: 'escala', text: 'Escala (1-5)'}
+            ].map(tipo => {
+                // ✅ CORRECCIÓN: Tu select guardaba tipos como 'si_no', no 'Verdadero / Falso'
+                let texto = tipo.text;
+                let value = tipo.value;
+                return `<option value="${value}" ${pregunta.tipo_pregunta === value ? 'selected' : ''}>${texto}</option>`;
+            }).join('');
+            
+            // ✅ CORRECCIÓN: Escapar el texto correctamente para un input
+            // Usamos .attr('value', ...) en lugar de .text()
+            const textoPreguntaEscapado = (pregunta.texto_pregunta || '');
+            
+            const preguntaHtml = `<div class="pregunta-block" data-index="${index}"><div class="pregunta-header"><input type="text" name="preguntas[${index}][texto_pregunta]" placeholder="Pregunta sin título" value="" required><select name="preguntas[${index}][tipo_pregunta]" class="tipo-pregunta-selector">${tipoOptions}</select></div><div class="opciones-container"></div><div class="pregunta-footer"><button type="button" class="btn-delete-pregunta" title="Eliminar Pregunta"><i class="fa-solid fa-trash-alt"></i></button></div></div>`;
+            
+            // Insertar el HTML primero
             $('#preguntas-container').append(preguntaHtml);
-            const $containerOpciones = $(`.pregunta-block[data-index="${index}"] .opciones-container`);
             
-            if (pregunta.opciones && pregunta.opciones.length > 0) {
-                if (pregunta.tipo_pregunta === 'opcion_multiple' || pregunta.tipo_pregunta === 'seleccion_multiple') {
-                    pregunta.opciones.forEach((opcion, opIndex) => { agregarOpcionConDatos($containerOpciones, index, opIndex, opcion.texto_opcion, pregunta.tipo_pregunta); });
-                    $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
-                }
-            } else if (pregunta.tipo_pregunta === 'opcion_multiple' || pregunta.tipo_pregunta === 'seleccion_multiple') {
-                agregarOpcion($containerOpciones, index, 0); $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
-            }
-             $(`.pregunta-block[data-index="${index}"] .tipo-pregunta-selector`).trigger('change');
-        }
+            // ✅ Asignar el valor usando .val() para manejar caracteres especiales
+            $(`.pregunta-block[data-index="${index}"] input[name*="[texto_pregunta]"]`).val(textoPreguntaEscapado);
+
+            const $containerOpciones = $(`.pregunta-block[data-index="${index}"] .opciones-container`);
+            
+            if (pregunta.opciones && pregunta.opciones.length > 0) {
+                if (pregunta.tipo_pregunta === 'opcion_multiple' || pregunta.tipo_pregunta === 'seleccion_multiple') {
+                    pregunta.opciones.forEach((opcion, opIndex) => { agregarOpcionConDatos($containerOpciones, index, opIndex, opcion.texto_opcion, pregunta.tipo_pregunta); });
+                    $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
+                }
+            } else if (pregunta.tipo_pregunta === 'opcion_multiple' || pregunta.tipo_pregunta === 'seleccion_multiple') {
+                agregarOpcion($containerOpciones, index, 0); $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
+            }
+             $(`.pregunta-block[data-index="${index}"] .tipo-pregunta-selector`).trigger('change');
+        }
         function agregarOpcion(container, indexPregunta, opcionIndex) {
             const tipoPregunta = container.closest('.pregunta-block').find('.tipo-pregunta-selector').val();
             const iconClass = (tipoPregunta === 'seleccion_multiple') ? 'far fa-square' : 'far fa-circle';
@@ -421,12 +431,17 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
             container.find('.opcion-item:last-child input').focus();
         }
         function agregarOpcionConDatos(container, indexPregunta, opcionIndex, textoOpcion, tipoPregunta) {
-            const iconClass = (tipoPregunta === 'seleccion_multiple') ? 'far fa-square' : 'far fa-circle';
-            // Escapar texto
-            const textoOpcionEscapado = $('<div>').text(textoOpcion || '').attr('value');
-            const opcionHtml = `<div class="opcion-item"><i class="${iconClass}" style="color: #ccc;"></i><input type="text" name="preguntas[${indexPregunta}][opciones][${opcionIndex}][texto_opcion]" placeholder="Opción ${opcionIndex + 1}" value="${textoOpcionEscapado}" required><button type="button" class="btn-delete-opcion" title="Eliminar Opción">&times;</button></div>`;
+            const iconClass = (tipoPregunta === 'seleccion_multiple') ? 'far fa-square' : 'far fa-circle';
+            // ✅ CORRECCIÓN: Escapar el texto correctamente para un input
+            const textoOpcionEscapado = (textoOpcion || '');
+            const opcionHtml = `<div class="opcion-item"><i class="${iconClass}" style="color: #ccc;"></i><input type="text" name="preguntas[${indexPregunta}][opciones][${opcionIndex}][texto_opcion]" placeholder="Opción ${opcionIndex + 1}" value="" required><button type="button" class="btn-delete-opcion" title="Eliminar Opción">&times;</button></div>`;
+            
+            // Insertar el HTML primero
             container.append(opcionHtml);
-        }
+            
+            // ✅ Asignar el valor usando .val()
+            container.find('.opcion-item:last-child input').val(textoOpcionEscapado);
+        }
 
         // --- MANEJADORES DE EVENTOS PRINCIPALES ---
         $(document).ready(function() {
