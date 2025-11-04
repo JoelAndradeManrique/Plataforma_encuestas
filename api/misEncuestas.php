@@ -8,8 +8,7 @@ require_once '../config/db.php';
 require_once '../controllers/EncuestaController.php';
 
 // --- Seguridad: Solo Encuestadores ---
-if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] !== 'encuestador') {
-    http_response_code(403); // 403 Forbidden
+if (!isset($_SESSION['usuario']) || ($_SESSION['usuario']['rol'] !== 'encuestador' && $_SESSION['usuario']['rol'] !== 'administrador')) {    http_response_code(403); // 403 Forbidden
     echo json_encode(['success' => false, 'mensaje' => 'Acceso denegado. Se requiere rol de encuestador.']);
     exit();
 }

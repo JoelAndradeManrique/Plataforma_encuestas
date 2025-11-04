@@ -7,14 +7,12 @@ header("Access-Control-Allow-Methods: GET");
 require_once '../config/db.php';
 require_once '../controllers/EncuestaController.php';
 
-// --- ✅ CORRECCIÓN DE ROL ---
+// Seguridad: Solo Admin
 if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] !== 'administrador') {
     http_response_code(403);
     echo json_encode(['success' => false, 'mensaje' => 'Acceso denegado.']);
     exit();
 }
-// --- FIN CORRECCIÓN ---
-
 if ($_SERVER['REQUEST_METHOD'] !== 'GET' || !isset($_GET['id_encuesta'])) {
     http_response_code(400);
     echo json_encode(['success' => false, 'mensaje' => 'Se requiere id_encuesta.']);
@@ -24,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET' || !isset($_GET['id_encuesta'])) {
 $id_encuesta = (int)$_GET['id_encuesta'];
 
 $controlador = new EncuestaController($conexion);
-$respuesta = $controlador->obtenerResultadosAdmin($id_encuesta); // Llama a la función Admin
+$respuesta = $controlador->obtenerResultadosAdmin($id_encuesta); // Llama a la nueva función Admin
 
 http_response_code($respuesta['estado']);
 echo json_encode($respuesta);

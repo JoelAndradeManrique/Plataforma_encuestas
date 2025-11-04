@@ -392,28 +392,6 @@ class EncuestaController {
         return $this->obtenerMisRespuestas($id_encuesta, $id_alumno_a_ver);
     }
 
-/**
-     * Obtiene los resultados de una encuesta (VERSIÓN ADMIN).
-     * No comprueba propiedad.
-     * @param int $id_encuesta El ID de la encuesta.
-     * @return array Respuesta con estado y datos.
-     */
-    public function obtenerResultadosAdmin($id_encuesta) {
-        if (empty($id_encuesta)) {
-            return ['estado' => 400, 'success' => false, 'mensaje' => 'Falta ID de encuesta.'];
-        }
-        try {
-            // Llama a la nueva función del modelo
-            $resultados = $this->modeloEncuesta->getResultadosAdmin($id_encuesta); 
-
-            if ($resultados === null) { return ['estado' => 404, 'success' => false, 'mensaje' => 'Encuesta no encontrada.']; }
-            if ($resultados === false) { return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de BD al obtener resultados admin.']; }
-            return [ 'estado' => 200, 'success' => true, 'resultados' => $resultados ];
-        } catch (Exception $e) {
-             error_log("Exception in obtenerResultadosAdmin: " . $e->getMessage());
-             return [ 'estado' => 500, 'success' => false, 'mensaje' => 'Error al procesar resultados admin.', 'error_db' => $e->getMessage() ];
-        }
-    }
 
     /**
      * Obtiene estadísticas globales (para Admin).
@@ -456,6 +434,50 @@ class EncuestaController {
         } catch (Exception $e) {
             error_log("Error en obtenerEstadisticasGlobales: " . $e->getMessage());
             return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al obtener estadísticas.'];
+        }
+    }
+
+    /**
+     * Obtiene los resultados de una encuesta (VERSIÓN ADMIN).
+     * No comprueba propiedad.
+     * @param int $id_encuesta El ID de la encuesta.
+     * @return array Respuesta con estado y datos.
+     */
+    public function obtenerResultadosAdmin($id_encuesta) {
+        if (empty($id_encuesta)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'Falta ID de encuesta.'];
+        }
+        try {
+            // Llama a la nueva función del modelo
+            $resultados = $this->modeloEncuesta->getResultadosAdmin($id_encuesta); 
+
+            if ($resultados === null) { return ['estado' => 404, 'success' => false, 'mensaje' => 'Encuesta no encontrada.']; }
+            if ($resultados === false) { return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de BD.']; }
+            return [ 'estado' => 200, 'success' => true, 'resultados' => $resultados ];
+        } catch (Exception $e) {
+             error_log("Exception in obtenerResultadosAdmin: " . $e->getMessage());
+             return [ 'estado' => 500, 'success' => false, 'mensaje' => 'Error al procesar resultados admin.', 'error_db' => $e->getMessage() ];
+        }
+    }
+
+
+    /**
+     * Procesa la eliminación de una encuesta (Admin).
+     * @param int $id_encuesta
+     * @return array
+     */
+    public function eliminarEncuestaAdmin($id_encuesta) {
+        if (empty($id_encuesta)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'Se requiere ID de encuesta.'];
+        }
+        try {
+            if ($this->modeloEncuesta->deleteSurveyAdmin($id_encuesta)) {
+                return ['estado' => 200, 'success' => true, 'mensaje' => 'Encuesta eliminada permanentemente.'];
+            } else {
+                return ['estado' => 404, 'success' => false, 'mensaje' => 'Encuesta no encontrada o no se pudo eliminar.'];
+            }
+        } catch (Exception $e) {
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de base de datos.', 'error_db' => $e->getMessage()];
         }
     }
 }

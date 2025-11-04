@@ -877,6 +877,24 @@ class Encuesta {
         $stmt->close();
         return $stats;
     }
+
+    /**
+     * Elimina una encuesta por ID (Admin).
+     * No comprueba propiedad. Asume que ON DELETE CASCADE está en la DB.
+     * @param int $id_encuesta
+     * @return bool
+     */
+    public function deleteSurveyAdmin($id_encuesta) {
+        $stmt = $this->conexion->prepare("DELETE FROM encuestas WHERE id_encuesta = ?");
+        if (!$stmt) { 
+            error_log("Prepare failed (deleteSurveyAdmin): ".$this->conexion->error);
+            return false; 
+        }
+        $stmt->bind_param("i", $id_encuesta);
+        $success = $stmt->execute();
+        $stmt->close();
+        return $success;
+    }
     
 }
 ?>
