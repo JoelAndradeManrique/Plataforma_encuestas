@@ -8,7 +8,7 @@ require_once '../config/db.php';
 require_once '../controllers/UsuarioController.php';
 
 // --- Seguridad: Solo Administradores ---
-if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] !== 'admin') {
+if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] !== 'administrador') {
     http_response_code(403); // Forbidden
     echo json_encode(['success' => false, 'mensaje' => 'Acceso denegado. Se requiere rol de administrador.']);
     exit();
