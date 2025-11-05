@@ -919,7 +919,6 @@ $nombre = htmlspecialchars($usuario['nombre']);
                 cargarFormEditarAdmin($(this).data('id')); // Llama a la función de edición
             });
             
-            // Clic en "Publicar"
             $('#dashboard-content-container').on('click', '.btn-publish-lista', function(e) { 
                 e.stopPropagation();
                 const id = $(this).data('id'); 
@@ -951,7 +950,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
                 }).then((result) => {
                     if (result.isConfirmed) {
                         $.ajax({
-                            url: '../api/eliminarEncuesta.php', // Usa la API del encuestador (permisos arreglados)
+                            url: '../api/adminEliminarEncuesta.php', // Usa la API del encuestador (permisos arreglados)
                             method: 'POST', contentType: 'application/json',
                             data: JSON.stringify({ id_encuesta: idEncuesta }),
                             success: function(res) {

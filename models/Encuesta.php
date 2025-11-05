@@ -135,17 +135,26 @@ class Encuesta {
      * Actualiza el estado de una encuesta (ej. 'publicada' a 'cerrada').
      * @param int $id_encuesta El ID de la encuesta.
      * @param string $nuevo_estado El nuevo estado ('publicada', 'cerrada', 'borrador').
-     * @param int $id_encuestador El ID del encuestador (para seguridad).
+     * @param int $id_usuario El ID del usuario (para seguridad).
+     * @param string $rol El ROL del usuario (para bypass de admin).
      * @return bool True si tuvo éxito, false si no.
      */
-    public function updateEstado($id_encuesta, $nuevo_estado, $id_encuestador) {
-        // La consulta se asegura que solo el encuestador que creó la encuesta pueda cambiarla
-        $query = "UPDATE encuestas SET estado = ? WHERE id_encuesta = ? AND id_encuestador = ?";
-        $stmt = $this->conexion->prepare($query);
-        $stmt->bind_param("sii", $nuevo_estado, $id_encuesta, $id_encuestador);
+    public function updateEstado($id_encuesta, $nuevo_estado, $id_usuario, $rol) {
+        
+        if ($rol === 'administrador') {
+            // Admin puede cambiar el estado de CUALQUIER encuesta
+            $query = "UPDATE encuestas SET estado = ? WHERE id_encuesta = ?";
+            $stmt = $this->conexion->prepare($query);
+            $stmt->bind_param("si", $nuevo_estado, $id_encuesta);
+        } else {
+            // Encuestador solo puede cambiar las suyas
+            $query = "UPDATE encuestas SET estado = ? WHERE id_encuesta = ? AND id_encuestador = ?";
+            $stmt = $this->conexion->prepare($query);
+            $stmt->bind_param("sii", $nuevo_estado, $id_encuesta, $id_usuario);
+        }
+        
         $stmt->execute();
         
-        // affected_rows > 0 significa que la actualización fue exitosa
         return $stmt->affected_rows > 0;
     }
 

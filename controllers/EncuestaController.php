@@ -71,26 +71,33 @@ class EncuestaController {
         }
     }
 
-    /**
-     * Procesa la actualización del estado de una encuesta (ej. cerrarla).
-     * @param array $datos Debe contener 'id_encuesta', 'nuevo_estado' y 'id_encuestador'.
-     * @return array Respuesta con estado y mensaje.
-     */
     public function actualizarEstado($datos) {
-        $estados_validos = ['publicada', 'cerrada', 'borrador'];
-        if (empty($datos['id_encuesta']) || empty($datos['nuevo_estado']) || empty($datos['id_encuestador'])) {
-            return ['estado' => 400, 'success' => false, 'mensaje' => 'Faltan datos requeridos.'];
-        }
-        if (!in_array($datos['nuevo_estado'], $estados_validos)) {
-            return ['estado' => 400, 'success' => false, 'mensaje' => 'Estado no válido.'];
-        }
+    $estados_validos = ['publicada', 'cerrada', 'borrador'];
 
-        if ($this->modeloEncuesta->updateEstado($datos['id_encuesta'], $datos['nuevo_estado'], $datos['id_encuestador'])) {
-            return ['estado' => 200, 'success' => true, 'mensaje' => 'Estado de la encuesta actualizado.'];
-        } else {
-            return ['estado' => 404, 'success' => false, 'mensaje' => 'No se pudo actualizar la encuesta. (Verifica que seas el propietario)'];
-        }
+    if (empty($datos['id_encuesta']) || empty($datos['nuevo_estado'])) {
+        return ['estado' => 400, 'success' => false, 'mensaje' => 'Faltan datos requeridos.'];
     }
+
+    if (!in_array($datos['nuevo_estado'], $estados_validos)) {
+        return ['estado' => 400, 'success' => false, 'mensaje' => 'Estado no válido.'];
+    }
+
+    // Verificar rol
+    $esAdmin = ($_SESSION['rol'] ?? null) === 'admin';
+
+    // Si es admin, no validar encuestador
+    $idEncuestador = $esAdmin ? null : ($datos['id_encuestador'] ?? null);
+
+    if (!$esAdmin && empty($idEncuestador)) {
+        return ['estado' => 400, 'success' => false, 'mensaje' => 'Falta el ID del encuestador.'];
+    }
+
+    if ($this->modeloEncuesta->updateEstado($datos['id_encuesta'], $datos['nuevo_estado'], $idEncuestador, $esAdmin)) {
+        return ['estado' => 200, 'success' => true, 'mensaje' => 'Estado de la encuesta actualizado.'];
+    } else {
+        return ['estado' => 404, 'success' => false, 'mensaje' => 'No se pudo actualizar la encuesta.'];
+    }
+}
 
     /**
      * Obtiene todas las encuestas para un ID de encuestador específico.
