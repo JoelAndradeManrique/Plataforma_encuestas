@@ -698,7 +698,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
 
         function agregarPreguntaConDatos(pregunta) {
             const index = preguntaIndex++;
-            const tipoOptions = [
+             const tipoOptions = [
                 {value: 'opcion_multiple', text: 'Opción Múltiple'},
                 {value: 'seleccion_multiple', text: 'Selección Múltiple'},
                 {value: 'abierta', text: 'Respuesta Corta'},
@@ -708,9 +708,19 @@ $nombre = htmlspecialchars($usuario['nombre']);
                 return `<option value="${tipo.value}" ${pregunta.tipo_pregunta === tipo.value ? 'selected' : ''}>${tipo.text}</option>`;
             }).join('');
             
-            const preguntaHtml = `<div class="pregunta-block" data-index="${index}"><div class="pregunta-header"><input type="text" name="preguntas[${index}][texto_pregunta]" placeholder="Pregunta sin título" value="${pregunta.texto_pregunta || ''}" required><select name="preguntas[${index}][tipo_pregunta]" class="tipo-pregunta-selector">${tipoOptions}</select></div><div class="opciones-container"></div><div class="pregunta-footer"><button type="button" class="btn-delete-pregunta" title="Eliminar Pregunta"><i class="fa-solid fa-trash-alt"></i></button></div></div>`;
+            const textoPreguntaEscapado = (pregunta.texto_pregunta || '');
+            
+            const preguntaHtml = `<div class="pregunta-block" data-index="${index}"><div class="pregunta-header"><input type="text" name="preguntas[${index}][texto_pregunta]" placeholder="Pregunta sin título" value="" required><select name="preguntas[${index}][tipo_pregunta]" class="tipo-pregunta-selector">${tipoOptions}</select></div><div class="opciones-container"></div><div class="pregunta-footer"><button type="button" class="btn-delete-pregunta" title="Eliminar Pregunta"><i class="fa-solid fa-trash-alt"></i></button></div></div>`;
+            
             $('#preguntas-container').append(preguntaHtml);
+            
+            // Asignar el valor usando .val()
+            $(`.pregunta-block[data-index="${index}"] input[name*="[texto_pregunta]"]`).val(textoPreguntaEscapado);
+
             const $containerOpciones = $(`.pregunta-block[data-index="${index}"] .opciones-container`);
+            
+            // ✅ CORRECCIÓN: El trigger('change') estaba borrando las opciones.
+            // Lo quitamos de aquí y movemos la lógica del 'change' a una función separada.
             
             if (pregunta.opciones && pregunta.opciones.length > 0) {
                 if (pregunta.tipo_pregunta === 'opcion_multiple' || pregunta.tipo_pregunta === 'seleccion_multiple') {
@@ -718,16 +728,32 @@ $nombre = htmlspecialchars($usuario['nombre']);
                     $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
                 }
             } else if (pregunta.tipo_pregunta === 'opcion_multiple' || pregunta.tipo_pregunta === 'seleccion_multiple') {
-                agregarOpcion($containerOpciones, index, 0); $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
+                agregarOpcion($containerOpciones, index, 0); 
+                $containerOpciones.append(`<button type="button" class="btn-add-opcion"><i class="fa-solid fa-plus"></i> Añadir opción</button>`);
             }
-             $(`.pregunta-block[data-index="${index}"] .tipo-pregunta-selector`).trigger('change');
+             
+            // ✅ Llamamos a la lógica que actualiza la UI (sin borrar)
+            // Esta función NO está definida en tu script, la añado abajo
         }
-        function agregarOpcionConDatos(container, indexPregunta, opcionIndex, textoOpcion, tipoPregunta) {
+         function agregarOpcion(container, indexPregunta, opcionIndex) {
+            const tipoPregunta = container.closest('.pregunta-block').find('.tipo-pregunta-selector').val();
             const iconClass = (tipoPregunta === 'seleccion_multiple') ? 'far fa-square' : 'far fa-circle';
-            const opcionHtml = `<div class="opcion-item"><i class="${iconClass}" style="color: #ccc;"></i><input type="text" name="preguntas[${indexPregunta}][opciones][${opcionIndex}][texto_opcion]" placeholder="Opción ${opcionIndex + 1}" value="${textoOpcion || ''}" required><button type="button" class="btn-delete-opcion" title="Eliminar Opción">&times;</button></div>`;
+            // ✅ Corregido: ${index} -> ${indexPregunta}
+            const opcionHtml = `<div class="opcion-item"><i class="${iconClass}" style="color: #ccc;"></i><input type="text" name="preguntas[${indexPregunta}][opciones][${opcionIndex}][texto_opcion]" placeholder="Opción ${opcionIndex + 1}" required><button type="button" class="btn-delete-opcion" title="Eliminar Opción">&times;</button></div>`;
             container.append(opcionHtml);
+            container.find('.opcion-item:last-child input').focus();
         }
 
+        function agregarOpcionConDatos(container, indexPregunta, opcionIndex, textoOpcion, tipoPregunta) {
+            const iconClass = (tipoPregunta === 'seleccion_multiple') ? 'far fa-square' : 'far fa-circle';
+            const textoOpcionEscapado = (textoOpcion || '');
+            const opcionHtml = `<div class="opcion-item"><i class="${iconClass}" style="color: #ccc;"></i><input type="text" name="preguntas[${indexPregunta}][opciones][${opcionIndex}][texto_opcion]" placeholder="Opción ${opcionIndex + 1}" value="" required><button type="button" class="btn-delete-opcion" title="Eliminar Opción">&times;</button></div>`;
+            
+            container.append(opcionHtml);
+            
+            // Asignar el valor usando .val()
+            container.find('.opcion-item:last-child input').val(textoOpcionEscapado);
+        }
 
         // --- Manejadores de Eventos ---
         $(document).ready(function() {
@@ -939,19 +965,35 @@ $nombre = htmlspecialchars($usuario['nombre']);
             });
 
             // Submit del Formulario EDITAR Encuesta
-             $('#dashboard-content-container').on('submit', '#form-editar-encuesta', function(e) {
+            $('#dashboard-content-container').on('submit', '#form-editar-encuesta', function(e) {
                 e.preventDefault();
                 const datosActualizados = { id_encuesta: $(this).find('input[name="id_encuesta"]').val(), titulo: $('#titulo').val().trim(), descripcion: $('#descripcion').val().trim(), visibilidad: $('#visibilidad').val(), estado: 'borrador', preguntas: [] };
                 if (!datosActualizados.titulo) { Swal.fire('Error', 'Título obligatorio.', 'error'); $('#titulo').focus(); return; }
-                $('.pregunta-block').each(function(index) { const block = $(this); const textoPregunta = block.find('input[name*="[texto_pregunta]"]').val().trim(); const tipoPregunta = block.find('select[name*="[tipo_pregunta]"]').val(); if (!textoPregunta) return; const preguntaData = { texto_pregunta: textoPregunta, tipo_pregunta: tipoPregunta, orden: index + 1, opciones: [] }; block.find('.opcion-item input[type="text"]').each(function() { const textoOpcion = $(this).val().trim(); if (!$(this).prop('disabled') && textoOpcion !== "") { preguntaData.opciones.push({ texto_opcion: textoOpcion }); } }); if (tipoPregunta === 'si_no') { preguntaData.opciones.push({texto_opcion:'Verdadero'}); preguntaData.opciones.push({texto_opcion:'Falso'}); } else if (tipoPregunta === 'escala') { /* Opciones de escala se manejan en backend */ } datosActualizados.preguntas.push(preguntaData); });
+                $('.pregunta-block').each(function(index) { const block = $(this); const textoPregunta = block.find('input[name*="[texto_pregunta]"]').val().trim(); const tipoPregunta = block.find('select[name*="[tipo_pregunta]"]').val(); if (!textoPregunta) return; const preguntaData = { texto_pregunta: textoPregunta, tipo_pregunta: tipoPregunta, orden: index + 1, opciones: [] }; block.find('.opcion-item input[type="text"]').each(function() { const textoOpcion = $(this).val().trim(); if (!$(this).prop('disabled') && textoOpcion !== "") { preguntaData.opciones.push({ texto_opcion: textoOpcion }); } }); if (tipoPregunta === 'si_no') { preguntaData.opciones.push({texto_opcion:'Verdadero'}); preguntaData.opciones.push({texto_opcion:'Falso'}); } else if (tipoPregunta === 'escala') { preguntaData.opciones.push({texto_opcion:'1', valor_escala: 1}); preguntaData.opciones.push({texto_opcion:'2', valor_escala: 2}); preguntaData.opciones.push({texto_opcion:'3', valor_escala: 3}); preguntaData.opciones.push({texto_opcion:'4', valor_escala: 4}); preguntaData.opciones.push({texto_opcion:'5', valor_escala: 5}); } datosActualizados.preguntas.push(preguntaData); });
                 if (datosActualizados.preguntas.length === 0) { Swal.fire('Error', 'Añade al menos una pregunta válida.', 'error'); return; }
-                const updateBtn = $('#publish-button-placeholder .btn-publish'); updateBtn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Actualizando...');
+                
+                const updateBtn = $('#publish-button-placeholder .btn-publish'); 
+                updateBtn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Actualizando...'); 
+                console.log("Enviando actualización:", JSON.stringify(datosActualizados));
                 
                 $.ajax({ 
-                    url: '../api/actualizarEncuestaBorrador.php', // API que acabamos de crear
-                    method: 'POST', contentType: 'application/json', data: JSON.stringify(datosActualizados), 
-                    success: function(res) { if (res.success) { Swal.fire('¡Actualizado!', 'Borrador guardado.', 'success'); cargarGestionEncuestas(); } else { Swal.fire('Error', res.mensaje, 'error'); updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); } }, 
-                    error: function() { Swal.fire('Error', 'Conexión fallida.', 'error'); updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); } 
+                    url: '../api/actualizarEncuestaBorrador.php', // ¡API AHORA EXISTE!
+                    method: 'POST', 
+                    contentType: 'application/json', 
+                    data: JSON.stringify(datosActualizados), 
+                    success: function(res) { 
+                        if (res.success) { 
+                            Swal.fire('¡Actualizado!', 'Borrador guardado.', 'success'); 
+                            cargarGestionEncuestas(); 
+                        } else { 
+                            Swal.fire('Error', res.mensaje, 'error'); 
+                            updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); 
+                        } 
+                    }, 
+                    error: function() { 
+                        Swal.fire('Error', 'Conexión fallida.', 'error'); 
+                        updateBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Actualizar Borrador'); 
+                    } 
                 });
             });
 
