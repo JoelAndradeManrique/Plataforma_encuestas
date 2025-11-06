@@ -329,6 +329,19 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                         <div class="form-group"><label for="admin-nombre-enc">Nombres</label><input type="text" id="admin-nombre-enc" required></div>
                                         <div class="form-group"><label for="admin-apellido-enc">Apellidos</label><input type="text" id="admin-apellido-enc" required></div>
                                         <div class="form-group"><label for="admin-email-enc">Correo Electrónico</label><input type="email" id="admin-email-enc" placeholder="ejemplo@tecmerida.com" required></div>
+                                        <div class="form-group"><label for="admin-carrera-enc">Carrera</label>
+                                                                                    <select id="admin-carrera-enc" name="carrera" required>
+                                                                                        <option value="">Seleccione Carrera</option>
+                                                                                        <option value="ingenieria-sistemas">Ingeniería en Sistemas</option>
+                                                                                        <option value="ingenieria-civil">Ingeniería Civil</option>
+                                                                                        <option value="medicina">Medicina</option>
+                                                                                        <option value="derecho">Derecho</option>
+                                                                                        <option value="administracion">Administración</option>
+                                                                                        <option value="contabilidad">Contabilidad</option>
+                                                                                        <option value="psicologia">Psicología</option>
+                                                                                        <option value="arquitectura">Arquitectura</option>
+                                                                                    </select>
+                                                                                </div>
                                         <div class="form-group"><label for="admin-asignatura-enc">Materia (Asignatura)</label><input type="text" id="admin-asignatura-enc" required></div>
                                         <div class="form-group"><label for="admin-contrasena-enc">Contraseña Temporal</label><input type="password" id="admin-contrasena-enc" required><div class="password-hint">Debe cumplir: 8+ carac, 1 especial, termina en "AL"</div></div>
                                         <button type="submit" class="btn-crear-usuario btn-crear-encuestador"><i class="fa-solid fa-user-plus"></i> Crear Encuestador</button>
@@ -779,7 +792,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
             $('#dashboard-content-container').on('submit', '#form-crear-encuestador', function(e) {
                 e.preventDefault();
                 const $button = $(this).find('.btn-crear-encuestador'); $button.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Creando...');
-                const datos = { nombre: $('#admin-nombre-enc').val().trim(), apellido: $('#admin-apellido-enc').val().trim(), email: $('#admin-email-enc').val().trim(), asignatura: $('#admin-asignatura-enc').val().trim(), contrasena: $('#admin-contrasena-enc').val() };
+                const datos = { nombre: $('#admin-nombre-enc').val().trim(), apellido: $('#admin-apellido-enc').val().trim(), email: $('#admin-email-enc').val().trim(), carrera: $('#admin-carrera-enc').val(), asignatura: $('#admin-asignatura-enc').val().trim(), contrasena: $('#admin-contrasena-enc').val() };
                 const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
                 if (datos.contrasena.length < 8 || !datos.contrasena.toLowerCase().endsWith('al') || !specialCharRegex.test(datos.contrasena)) { Swal.fire('Error', 'La contraseña no cumple los requisitos (8+ carac, 1 especial, termina en "AL").', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); return; }
                  if (!datos.email.toLowerCase().endsWith('@tecmerida.com')) { Swal.fire('Error', 'El correo debe ser @tecmerida.com.', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); return; }
