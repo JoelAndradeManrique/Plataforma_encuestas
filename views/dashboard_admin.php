@@ -305,7 +305,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
                     <a href="#" class="tab-link" id="btn-tab-gestion-encuestas">
                         <i class="fa-solid fa-list-ul"></i> Gestión de Encuestas
                     </a>
-                    <a href="#" class="tab-link" id="btn-tab-crear">
+                    <a href="#" class="tab-link" id="btn-tab-crear" style="opacity: 0.6; pointer-events: none;">
                         <i class="fa-solid fa-plus-circle"></i> Crear Encuesta
                     </a>
                 </nav>
@@ -1427,9 +1427,10 @@ function mostrarResultadosLimitados(r, idEncuesta, tituloEncuesta) {
                 $('#dashboard-content-container').on('click', '#btn-cancelar-asignacion', function() {
                     sessionStorage.removeItem('encuesta_asignada_a');
                     sessionStorage.removeItem('nombre_encuestador_asignado');
-                    cargarFormCrearAdmin(); // Recargar sin asignación
-                });
 
+                    // ✅ CAMBIO: Ahora llama a la función que carga la lista de usuarios
+                    cargarGestionUsuarios(); 
+                    });
             // Submit del Formulario EDITAR Encuesta
             $('#dashboard-content-container').on('submit', '#form-editar-encuesta', function(e) {
                 e.preventDefault();
