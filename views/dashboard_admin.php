@@ -467,9 +467,9 @@ $nombre = htmlspecialchars($usuario['nombre']);
                         res.encuestadores.forEach(user => {
                             $tbody.append(`
                                 <tr data-id="${user.id_usuario}">
-                                    <td>${user.apellido}, ${user.nombre}</td>
+                                    <td>${user.apellido}  ${user.nombre}</td>
                                     <td>${user.email}</td>
-                                    <td>${user.asignatura || 'N/A'}</td>
+                                    <td>${user.asignatura ? user.asignatura : 'N/A'}</td>
                                     <td class="actions">
                                         <button class="btn-edit" data-id="${user.id_usuario}" data-rol="encuestador" title="Editar"><i class="fa-solid fa-pencil"></i></button>
                                         <button class="btn-delete" data-id="${user.id_usuario}" title="Eliminar"><i class="fa-solid fa-trash"></i></button>

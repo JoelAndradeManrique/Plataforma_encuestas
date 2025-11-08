@@ -86,12 +86,12 @@ class UsuarioController {
      */
     public function registrarEncuestador($datos) {
         // Validación de campos requeridos para encuestador
-        $campos_requeridos = ['nombre', 'email', 'asignatura', 'contrasena'];
-        foreach ($campos_requeridos as $campo) {
-            if (empty($datos[$campo])) {
-                return ['estado' => 400, 'success' => false, 'mensaje' => "El campo '$campo' es obligatorio."];
-            }
+         $campos_requeridos = ['nombre', 'email', 'asignatura', 'contrasena', 'carrera'];
+    foreach ($campos_requeridos as $campo) {
+        if (empty($datos[$campo])) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => "El campo '$campo' es obligatorio."];
         }
+    }
 
         // Validación de formato de email
         if (!filter_var($datos['email'], FILTER_VALIDATE_EMAIL)) {
@@ -136,11 +136,11 @@ class UsuarioController {
 
         // Si todo es válido, intentar crear el encuestador
         if ($this->modeloUsuario->createEncuestador($datos)) {
-            return ['estado' => 201, 'success' => true, 'mensaje' => 'Encuestador registrado con éxito.'];
-        } else {
-            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al registrar el encuestador.', 'error_db' => $this->conexion->error];
-        }
+        return ['estado' => 201, 'success' => true, 'mensaje' => 'Encuestador registrado con éxito.'];
+    } else {
+        return ['estado' => 500, 'success' => false, 'mensaje' => 'Error al registrar el encuestador.', 'error_db' => $this->conexion->error];
     }
+}
     /**
      * Procesa el inicio de sesión del usuario.
      * @param array $datos Contiene 'email' y 'contrasena'.

@@ -38,27 +38,51 @@ class Usuario {
      * @return bool True si fue exitoso, false si no.
      */
    public function createEncuestador($datos) {
-        // La consulta ahora incluye la nueva columna password_temporal
-        $query = "INSERT INTO Usuarios (nombre, apellido, email, contrasena_hash, rol, asignatura, password_temporal) VALUES (?, ?, ?, ?, 'encuestador', ?, TRUE)"; // <-- TRUE al final
-        $stmt = $this->conexion->prepare($query);
-
-        $contrasena_hash = password_hash($datos['contrasena'], PASSWORD_DEFAULT);
+    try {
+        // Hash de la contraseña
+        $contrasenaHash = password_hash($datos['contrasena'], PASSWORD_DEFAULT);
         
-        $nombreCompleto = explode(' ', $datos['nombre'], 2);
-        $nombre = $nombreCompleto[0];
-        $apellido = $nombreCompleto[1] ?? '';
-
-        // Ahora son 6 parámetros
-        $stmt->bind_param("sssss",
-            $nombre,
-            $apellido,
-            $datos['email'],
-            $contrasena_hash,
-            $datos['asignatura']
+        // Si no viene apellido, usar vacío
+        $apellido = $datos['apellido'] ?? '';
+        
+        $sql = "INSERT INTO usuarios (nombre, apellido, email, contrasena_hash, rol, carrera, asignatura) 
+                VALUES (?, ?, ?, ?, 'encuestador', ?, ?)";
+        
+        $stmt = $this->conexion->prepare($sql);
+        if (!$stmt) {
+            error_log("Prepare failed (createEncuestador): " . $this->conexion->error);
+            return false;
+        }
+        
+        // Crear variables para bind_param (NO pasar los valores del array directamente)
+        $nombre = $datos['nombre'];
+        $email = $datos['email'];
+        $carrera = $datos['carrera'];
+        $asignatura = $datos['asignatura'];
+        
+        $stmt->bind_param("ssssss", 
+            $nombre,      // Variable, no $datos['nombre'] directamente
+            $apellido,    // Variable
+            $email,       // Variable
+            $contrasenaHash, // Variable
+            $carrera,     // Variable
+            $asignatura   // Variable
         );
-
-        return $stmt->execute();
+        
+        if ($stmt->execute()) {
+            $stmt->close();
+            return true;
+        } else {
+            error_log("Execute failed (createEncuestador): " . $stmt->error);
+            $stmt->close();
+            return false;
+        }
+        
+    } catch (Exception $e) {
+        error_log("Exception in createEncuestador: " . $e->getMessage());
+        return false;
     }
+}
     
      /**
      * Busca un usuario por email y devuelve datos relevantes para login.
@@ -337,18 +361,21 @@ class Usuario {
      * @return array
      */
     public function getEncuestadores() {
-        // Asegúrate que el ROL sea 'encuestador' (o como lo tengas en tu DB)
-        $query = "SELECT id_usuario, nombre, apellido, email FROM usuarios 
-                  WHERE rol = 'encuestador' 
-                  ORDER BY apellido, nombre";
-        $stmt = $this->conexion->prepare($query);
-        if (!$stmt) { error_log("Prepare failed (getEncuestadores): ".$this->conexion->error); return []; }
-        $stmt->execute();
-        $resultado = $stmt->get_result();
-        $encuestadores = $resultado->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-        return $encuestadores;
+    // Agregar 'asignatura' al SELECT
+    $query = "SELECT id_usuario, nombre, apellido, email, asignatura FROM usuarios 
+              WHERE rol = 'encuestador' 
+              ORDER BY apellido, nombre";
+    $stmt = $this->conexion->prepare($query);
+    if (!$stmt) { 
+        error_log("Prepare failed (getEncuestadores): ".$this->conexion->error); 
+        return []; 
     }
+    $stmt->execute();
+    $resultado = $stmt->get_result();
+    $encuestadores = $resultado->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $encuestadores;
+}
 
     /**
      * Obtiene una lista de todos los usuarios con rol 'alumno'.

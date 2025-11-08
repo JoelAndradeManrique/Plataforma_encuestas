@@ -42,18 +42,15 @@ foreach ($campos_requeridos as $campo) {
 // Tu controlador actual espera "nombre" (completo) y lo divide él mismo.
 // Vamos a ajustarnos a lo que el controlador YA espera:
 $datos_para_controlador = [
-    'nombre' => $datos['nombre'] . ' ' . $datos['apellido'], // Nombre completo
-    'email' => $datos['email'],
+    'nombre' => trim($datos['nombre']),
+    'apellido' => trim($datos['apellido']), 
+    'email' => trim($datos['email']),
     'carrera' => $datos['carrera'],
-    'asignatura' => $datos['asignatura'], // Materia que imparte
-    'contrasena' => $datos['contrasena'] // La contraseña temporal
+    'asignatura' => trim($datos['asignatura']),
+    'contrasena' => $datos['contrasena']
 ];
-// (Si también quieres guardar la "carrera", necesitarías modificar la DB
-// y el controlador 'registrarEncuestador' para aceptarla)
-
 
 $controlador = new UsuarioController($conexion);
-// Llamamos a la función que YA EXISTE y hace todo el trabajo
 $respuesta = $controlador->registrarEncuestador($datos_para_controlador);
 
 http_response_code($respuesta['estado']);
