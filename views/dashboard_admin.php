@@ -236,6 +236,58 @@ $nombre = htmlspecialchars($usuario['nombre']);
     max-height: 400px;
     overflow-y: auto;
 }
+
+.admin-surveys-container {
+    padding: 20px;
+}
+
+.lista-encuestadores-admin {
+    margin-top: 20px;
+}
+
+.encuestador-item {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+.encuestador-acordeon {
+    width: 100%;
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.3s;
+}
+
+.encuestador-acordeon:hover {
+    background: #e9ecef;
+}
+
+.encuestador-acordeon.active {
+    background: #007bff;
+    color: white;
+}
+
+.encuestador-acordeon.active .icon-chevron {
+    transform: rotate(180deg);
+}
+
+.icon-chevron {
+    transition: transform 0.3s;
+}
+
+.panel-encuestas {
+    display: none;
+    padding: 20px;
+    background: white;
+    border-top: 1px solid #e0e0e0;
+}
     </style>
 </head>
 <body>
@@ -527,70 +579,73 @@ $nombre = htmlspecialchars($usuario['nombre']);
         
         // --- ✅ 2. Cargar "Gestión de Encuestas" (ACTUALIZADO) ---
         function cargarGestionEncuestas() {
-            activarTab('#btn-tab-gestion-encuestas');
-            setNavContext('list');
-            const container = $('#dashboard-content-container');
-            const adminId = <?php echo json_encode($_SESSION['usuario']['id_usuario']); ?>;
+    activarTab('#btn-tab-gestion-encuestas');
+    setNavContext('list');
+    const container = $('#dashboard-content-container');
 
-            container.html(`
-                <div class="admin-own-surveys-container">
-                    <h2><i class="fa-solid fa-user-shield"></i> Mis Encuestas (Creadas como Admin)</h2>
-                    <div id="admin-my-surveys-list">
-                        <div id="loading-my-surveys" style="text-align:center; padding: 20px;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando mis encuestas...</div>
-                    </div>
+    container.html(`
+        <div class="admin-surveys-container">
+            <h2><i class="fa-solid fa-users"></i> Encuestas de Encuestadores</h2>
+            <div id="admin-encuestas-accordion">
+                <div id="loading-encuestas" style="text-align:center; padding: 20px;">
+                    <i class="fa-solid fa-spinner fa-spin"></i> Cargando encuestadores...
                 </div>
+            </div>
+        </div>
+    `);
+
+    // --- AJAX: Cargar todos los encuestadores y sus encuestas ---
+    $.ajax({
+        url: '../api/adminListarEncuestadores.php', 
+        method: 'GET', 
+        dataType: 'json',
+        success: function(response) {
+            const $accordionContainer = $('#admin-encuestas-accordion').empty();
+            
+            if (response.success && response.encuestadores && response.encuestadores.length > 0) {
+                let accordionHtml = '<div class="lista-encuestadores-admin">';
                 
-                <h2 style="margin-top: 30px;"><i class="fa-solid fa-users"></i> Encuestas de otros Encuestadores</h2>
-                <div id="admin-other-surveys-accordion">
-                    <div id="loading-other-surveys" style="text-align:center; padding: 20px;"><i class="fa-solid fa-spinner fa-spin"></i> Cargando encuestadores...</div>
+                response.encuestadores.forEach(encuestador => {
+                    accordionHtml += `
+                        <div class="encuestador-item">
+                            <button class="encuestador-acordeon" data-id="${encuestador.id_usuario}">
+                                <span>
+                                    <i class="fa-solid fa-user-tie"></i> 
+                                    ${encuestador.apellido}, ${encuestador.nombre} 
+                                    (${encuestador.email})
+                                    ${encuestador.asignatura ? `- ${encuestador.asignatura}` : ''}
+                                </span>
+                                <i class="fa-solid fa-chevron-down icon-chevron"></i>
+                            </button>
+                            <div class="panel-encuestas" id="panel-encuestador-${encuestador.id_usuario}">
+                                <div class="panel-loading">
+                                    <i class="fa-solid fa-spinner fa-spin"></i> Cargando encuestas...
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                
+                accordionHtml += '</div>';
+                $accordionContainer.append(accordionHtml);
+                
+            } else {
+                $accordionContainer.html(`
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <i class="fa-solid fa-user-tie fa-3x" style="margin-bottom: 20px; opacity: 0.5;"></i>
+                        <p>No hay encuestadores registrados.</p>
+                    </div>
+                `);
+            }
+        },
+        error: function() { 
+            $('#admin-encuestas-accordion').html(`
+                <div style="color: red; text-align: center; padding: 20px;">
+                    Error de conexión al cargar los encuestadores.
                 </div>
-            `);
-
-            // --- AJAX Call 1: Mis Encuestas (Admin) ---
-            $.ajax({
-                url: '../api/misEncuestas.php', 
-                method: 'GET', dataType: 'json',
-                success: function(response) {
-                    const $listContainer = $('#admin-my-surveys-list').empty();
-                    if (response.success && response.encuestas.length > 0) {
-                        response.encuestas.forEach(function(encuesta) {
-                            $listContainer.append(generarHtmlEncuestaItem(encuesta));
-                        });
-                    } else {
-                        $listContainer.html('<p style="text-align:center; padding: 10px;">No has creado ninguna encuesta como administrador.</p>');
-                    }
-                },
-                error: function() { $('#admin-my-surveys-list').html('<p style="color: red; text-align:center;">Error al cargar mis encuestas.</p>'); }
-            });
-
-            // --- AJAX Call 2: Encuestas de Otros ---
-            $.ajax({
-                url: '../api/adminListarEncuestadores.php', method: 'GET', dataType: 'json',
-                success: function(response) {
-                    const $accordionContainer = $('#admin-other-surveys-accordion').empty();
-                    if (response.success && response.encuestadores) {
-                        const otrosEncuestadores = response.encuestadores.filter(enc => enc.id_usuario != adminId);
-                        if (otrosEncuestadores.length === 0) {
-                            $accordionContainer.html('<p style="padding: 10px; text-align:center;">No hay otros encuestadores registrados.</p>'); return;
-                        }
-                        let accordionHtml = '<div class="lista-encuestadores-admin">';
-                        otrosEncuestadores.forEach(enc => {
-                            accordionHtml += `
-                                <div class="encuestador-item">
-                                    <button class="encuestador-acordeon" data-id="${enc.id_usuario}">
-                                        <span><i class="fa-solid fa-user-tie"></i> ${enc.apellido}, ${enc.nombre} (${enc.email})</span>
-                                        <i class="fa-solid fa-chevron-down icon-chevron"></i>
-                                    </button>
-                                    <div class="panel-encuestas" id="panel-encuestador-${enc.id_usuario}"><div class="panel-loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</div></div>
-                                </div>`;
-                        });
-                        accordionHtml += '</div>';
-                        $accordionContainer.append(accordionHtml);
-                    } else { $accordionContainer.html(`<p style="color: red;">${response.mensaje}</p>`); }
-                },
-                error: function() { $('#admin-other-surveys-accordion').html('<p style="color: red;">Error de conexión.</p>'); }
-            });
+            `); 
         }
+    });
+}
         
         // ✅ NUEVO: Helper para generar botones de encuesta (lógica de dashboard_general)
         function generarHtmlEncuestaItem(encuesta, esPropia = true) {
