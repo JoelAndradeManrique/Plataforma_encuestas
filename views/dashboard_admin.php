@@ -196,6 +196,46 @@ $nombre = htmlspecialchars($usuario['nombre']);
             .btn-logout, .user-profile span { font-size: 0.8rem;} 
             .tab-button-res { font-size: 0.95rem; padding: 10px 15px; } 
         }
+
+        .info-basica-encuesta {
+    background: #f8f9fa;
+    padding: 25px;
+    border-radius: 8px;
+    margin-top: 20px;
+    border: 1px solid #e9ecef;
+}
+
+.pregunta-item {
+    background: white;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    border-left: 4px solid #6c757d;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.participante-info {
+    padding: 10px 15px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.participante-info:last-child {
+    border-bottom: none;
+}
+
+.lista-participantes {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    background: white;
+    border-radius: 5px;
+    border: 1px solid #e9ecef;
+    max-height: 400px;
+    overflow-y: auto;
+}
     </style>
 </head>
 <body>
@@ -537,87 +577,347 @@ $nombre = htmlspecialchars($usuario['nombre']);
         }
         
         // ✅ NUEVO: Helper para generar botones de encuesta (lógica de dashboard_general)
-        function generarHtmlEncuestaItem(encuesta) {
-            const estadoClase = `estado-${encuesta.estado}`;
-            const estadoTexto = encuesta.estado.charAt(0).toUpperCase() + encuesta.estado.slice(1);
-            let botonesAccion = '';
+        function generarHtmlEncuestaItem(encuesta, esPropia = true) {
+    const estadoClase = `estado-${encuesta.estado}`;
+    const estadoTexto = encuesta.estado.charAt(0).toUpperCase() + encuesta.estado.slice(1);
+    let botonesAccion = '';
 
-            if (encuesta.estado === 'borrador') {
-                botonesAccion = `<button class="btn-editar" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-edit"></i> Editar</button>
-                                 <button class="btn-publish-lista" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-paper-plane"></i> Publicar</button>`;
-            } else if (encuesta.estado === 'publicada') {
-                botonesAccion = `<button class="btn-resultados" data-id="${encuesta.id_encuesta}" data-titulo="${encuesta.titulo}"><i class="fa-solid fa-chart-pie"></i> Resultados</button>
-                                 <button class="btn-cerrar" data-id="${encuesta.id_encuesta}" data-nuevo-estado="cerrada"><i class="fa-solid fa-lock"></i> Cerrar</button>`;
-            } else if (encuesta.estado === 'cerrada') {
-                botonesAccion = `<button class="btn-resultados" data-id="${encuesta.id_encuesta}" data-titulo="${encuesta.titulo}"><i class="fa-solid fa-chart-pie"></i> Resultados</button>
-                                 <button class="btn-cerrar" data-id="${encuesta.id_encuesta}" data-nuevo-estado="publicada" style="background-color: #28a745; color: white;"><i class="fa-solid fa-lock-open"></i> Re-Publicar</button>`;
-            }
-            
-            botonesAccion += ` <button class="btn-eliminar" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-trash-alt"></i> Eliminar</button>`;
-
-            const tituloEscapado = $('<div>').text(encuesta.titulo || 'Encuesta sin título').html();
-            let fechaFormateada = '';
-            try { fechaFormateada = new Date(encuesta.fecha_creacion).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch(e) {}
-            
-            return `<div class="encuesta-item" data-id-encuesta="${encuesta.id_encuesta}">
-                        <div class="encuesta-info">
-                            <h3>${tituloEscapado}</h3>
-                            <div><small>Creada: ${fechaFormateada}</small><span class="${estadoClase}">${estadoTexto}</span></div>
-                        </div>
-                        <div class="encuesta-acciones">${botonesAccion}</div>
-                    </div>`;
+    if (esPropia) {
+        // Botones completos para encuestas propias
+        if (encuesta.estado === 'borrador') {
+            botonesAccion = `<button class="btn-editar" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-edit"></i> Editar</button>
+                             <button class="btn-publish-lista" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-paper-plane"></i> Publicar</button>`;
+        } else if (encuesta.estado === 'publicada') {
+            botonesAccion = `<button class="btn-resultados" data-id="${encuesta.id_encuesta}" data-titulo="${encuesta.titulo}"><i class="fa-solid fa-chart-pie"></i> Resultados</button>
+                             <button class="btn-cerrar" data-id="${encuesta.id_encuesta}" data-nuevo-estado="cerrada"><i class="fa-solid fa-lock"></i> Cerrar</button>`;
+        } else if (encuesta.estado === 'cerrada') {
+            botonesAccion = `<button class="btn-resultados" data-id="${encuesta.id_encuesta}" data-titulo="${encuesta.titulo}"><i class="fa-solid fa-chart-pie"></i> Resultados</button>
+                             <button class="btn-cerrar" data-id="${encuesta.id_encuesta}" data-nuevo-estado="publicada" style="background-color: #28a745; color: white;"><i class="fa-solid fa-lock-open"></i> Re-Publicar</button>`;
         }
+    } else {
+        // Solo botón de vista limitada para encuestas ajenas
+        botonesAccion = `<button class="btn-resultados btn-resultados-limitado" data-id="${encuesta.id_encuesta}" data-titulo="${encuesta.titulo}"><i class="fa-solid fa-eye"></i> Ver Encuesta</button>`;
+    }
+    
+    botonesAccion += ` <button class="btn-eliminar" data-id="${encuesta.id_encuesta}"><i class="fa-solid fa-trash-alt"></i> Eliminar</button>`;
 
+    const tituloEscapado = $('<div>').text(encuesta.titulo || 'Encuesta sin título').html();
+    let fechaFormateada = '';
+    try { fechaFormateada = new Date(encuesta.fecha_creacion).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch(e) {}
+    
+    return `<div class="encuesta-item" data-id-encuesta="${encuesta.id_encuesta}">
+                <div class="encuesta-info">
+                    <h3>${tituloEscapado}</h3>
+                    <div><small>Creada: ${fechaFormateada}</small><span class="${estadoClase}">${estadoTexto}</span></div>
+                </div>
+                <div class="encuesta-acciones">${botonesAccion}</div>
+            </div>`;
+}
+
+
+            function mostrarResultadosCompletos(r, idEncuesta, tituloEncuesta) {
+    let html = `
+        <div class="resultados-container">
+            <div class="resultados-header">
+                <h2>${$('<div>').text(r.titulo || tituloEncuesta).html()}</h2>
+                <div style="background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 5px; padding: 10px 15px; margin: 10px 0;">
+                    <i class="fa-solid fa-chart-bar" style="color: #0c5460;"></i> 
+                    <strong>Vista completa</strong> - Esta es tu encuesta
+                </div>
+                <p>Visibilidad: ${r.visibilidad} | Estado: ${r.estado}</p>
+            </div>`;
+
+    const totalRespuestas = r.resumen_participacion.respuestas_anonimas + r.resumen_participacion.respuestas_identificadas;
+    
+    html += `
+        <div class="tabs-container-resultados">
+            <div class="tab-buttons">
+                <button class="tab-button-res active" data-tab="participacion"><i class="fa-solid fa-chart-pie"></i> Participación</button>
+                <button class="tab-button-res" data-tab="preguntas"><i class="fa-solid fa-chart-bar"></i> Preguntas</button>
+                <button class="tab-button-res" data-tab="participantes" style="${r.visibilidad === 'identificada' && r.participantes_identificados && r.participantes_identificados.length > 0 ? '' : 'display: none;'}"><i class="fa-solid fa-users"></i> Participantes</button>
+            </div>
+            <div class="tab-content-res">
+                <div id="tab-participacion" class="tab-pane-res active">
+                    <h3>Resumen de Participación (${totalRespuestas} respuestas totales)</h3>`;
+    
+    if (totalRespuestas > 0) {
+        html += `<div class="pie-chart-container"><canvas id="pieChartParticipacion"></canvas></div>`;
+    } else {
+        html += `<div style="text-align: center; padding: 30px; border: 1px dashed #ccc; border-radius: 8px; margin-top: 20px;">
+                    <i class="fa-solid fa-inbox fa-2x" style="color: #ccc; margin-bottom: 15px;"></i>
+                    <p><strong>Aún no hay respuestas</strong>.</p>
+                 </div>`;
+    }
+    
+    html += `
+                </div>
+                <div id="tab-preguntas" class="tab-pane-res">
+                    <h3>Resultados por Pregunta</h3>
+                    <div id="preguntas-graficos-container"></div>
+                </div>
+                <div id="tab-participantes" class="tab-pane-res">
+                    <h3>Participantes Identificados</h3>
+                    <div id="participantes-lista-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    
+    $('#dashboard-content-container').html(html);
+
+    // Pintar gráfico de participación si hay respuestas
+    if (totalRespuestas > 0) {
+        try {
+            const ctx = document.getElementById('pieChartParticipacion').getContext('2d');
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Identificadas', 'Anónimas'],
+                    datasets: [{
+                        label: '# de Respuestas',
+                        data: [r.resumen_participacion.respuestas_identificadas, r.resumen_participacion.respuestas_anonimas],
+                        backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(201, 203, 207, 0.7)'],
+                        borderColor: ['rgba(75, 192, 192, 1)', 'rgba(201, 203, 207, 1)'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        } catch (e) {
+            console.error("Error al crear gráfico pastel:", e);
+        }
+    }
+
+    // Pintar gráficos de preguntas
+    const preguntasGraficosContainer = $('#preguntas-graficos-container');
+    if (totalRespuestas > 0 && r.preguntas && r.preguntas.length > 0) {
+        let preguntasConEstadisticas = false;
+        
+        r.preguntas.forEach((preg, index) => {
+            const txt = $('<div>').text(preg.texto_pregunta).html();
+            
+            if (['opcion_multiple', 'si_no', 'escala', 'seleccion_multiple'].includes(preg.tipo_pregunta)) {
+                if (preg.resultados && preg.resultados.length > 0) {
+                    preguntasConEstadisticas = true;
+                    const labels = [];
+                    const data = [];
+                    const bg = ['rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 159, 64, 0.6)', 'rgba(255, 99, 132, 0.6)'];
+                    const bd = ['rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)'];
+                    
+                    preg.resultados.forEach((res, i) => {
+                        labels.push(res.texto_opcion);
+                        data.push(res.conteo);
+                    });
+                    
+                    const pHtml = `<div class="pregunta-resultado-grafico">
+                                      <h4>${index + 1}. ${txt}</h4>
+                                      <div class="bar-chart-container">
+                                          <canvas id="barChartPregunta${preg.id_pregunta}"></canvas>
+                                      </div>
+                                   </div>`;
+                    preguntasGraficosContainer.append(pHtml);
+                    
+                    try {
+                        setTimeout(() => {
+                            const ctxBar = document.getElementById(`barChartPregunta${preg.id_pregunta}`)?.getContext('2d');
+                            if (ctxBar) {
+                                new Chart(ctxBar, {
+                                    type: 'bar',
+                                    data: {
+                                        labels: labels,
+                                        datasets: [{
+                                            label: '# de Respuestas',
+                                            data: data,
+                                            backgroundColor: bg.slice(0, data.length),
+                                            borderColor: bd.slice(0, data.length),
+                                            borderWidth: 1
+                                        }]
+                                    },
+                                    options: {
+                                        responsive: true,
+                                        maintainAspectRatio: false,
+                                        scales: {
+                                            y: {
+                                                beginAtZero: true,
+                                                ticks: {
+                                                    precision: 0
+                                                }
+                                            }
+                                        },
+                                        plugins: {
+                                            legend: {
+                                                display: false
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                        }, 100);
+                    } catch (e) {
+                        console.error(`Error al crear gráfico ${preg.id_pregunta}:`, e);
+                    }
+                } else {
+                    preguntasGraficosContainer.append(`<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${txt}</h4><p><em>No hay respuestas para esta pregunta.</em></p></div>`);
+                }
+            } else if (preg.tipo_pregunta === 'abierta') {
+                preguntasConEstadisticas = true;
+                let aHtml = `<div class="pregunta-resultado-abierta"><h4>${index + 1}. ${txt} (Respuesta Corta)</h4>`;
+                if (preg.resultados && preg.resultados.length > 0) {
+                    preg.resultados.forEach(res => {
+                        aHtml += `<div class="respuesta-abierta">"${$('<div>').text(res.texto_respuesta).html()}" <span>- ${$('<div>').text(res.participante || 'Anónimo').html()}</span></div>`;
+                    });
+                } else {
+                    aHtml += `<p><em>No hay respuestas.</em></p>`;
+                }
+                aHtml += `</div>`;
+                preguntasGraficosContainer.append(aHtml);
+            }
+        });
+        
+        if (!preguntasConEstadisticas) {
+            preguntasGraficosContainer.html('<div style="text-align: center; padding: 20px;"><p>No hay preguntas con respuestas contables.</p></div>');
+        }
+    } else {
+        preguntasGraficosContainer.html('<div style="text-align: center; padding: 30px; border: 1px dashed #ccc; border-radius: 8px; margin-top: 20px;"><i class="fa-solid fa-inbox fa-2x" style="color: #ccc; margin-bottom: 15px;"></i><p><strong>Aún no hay respuestas</strong>.</p></div>');
+    }
+
+    // Mostrar lista de participantes si es encuesta identificada
+    const pCont = $('#participantes-lista-container');
+    if (r.visibilidad === 'identificada' && r.participantes_identificados && r.participantes_identificados.length > 0) {
+        let lHtml = '<ul class="lista-participantes">';
+        r.participantes_identificados.forEach(p => {
+            const nom = `${p.apellido}, ${p.nombre}`;
+            const nomEsc = $('<div>').text(nom).html();
+            lHtml += `<li><a href="#" class="participante-link admin-ver-respuestas" data-id-encuesta="${idEncuesta}" data-id-alumno="${p.id_usuario}" data-nombre-alumno="${nomEsc}"><i class="fa-solid fa-user"></i> ${nomEsc}</a></li>`;
+        });
+        lHtml += '</ul>';
+        pCont.html(lHtml);
+    } else {
+        pCont.html('<p>Encuesta anónima o sin respuestas identificadas.</p>');
+    }
+
+    // Agregar event listeners para las pestañas
+    $('.tab-button-res').off('click').on('click', function(e) {
+        e.preventDefault();
+        const tabId = $(this).data('tab');
+        $(this).closest('.tab-buttons').find('.tab-button-res').removeClass('active');
+        $(this).closest('.tabs-container-resultados').find('.tab-pane-res').removeClass('active');
+        $(this).addClass('active');
+        $(`#tab-${tabId}`).addClass('active');
+    });
+}
 
         // 3. Cargar Resultados (versión Admin)
         function cargarResultadosAdmin(idEncuesta, tituloEncuesta) {
-            activarTab(null);
-            setNavContext('results');
-            const container = $('#dashboard-content-container');
-            container.html('<div id="loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando resultados...</div>');
-            $.ajax({
-                url: `../api/adminObtenerResultados.php?id_encuesta=${idEncuesta}`, method: 'GET', dataType: 'json',
-                success: function(response) {
-                    if (response.success && response.resultados) {
-                        const r = response.resultados;
-                        let html = `<div class="resultados-container"><div class="resultados-header"><h2>Resultados: ${$('<div>').text(r.titulo).html()}</h2><p>Visibilidad: ${r.visibilidad} | Estado: ${r.estado}</p></div>`;
-                        const totalRespuestas = r.resumen_participacion.respuestas_anonimas + r.resumen_participacion.respuestas_identificadas;
-                        html += `
-                            <div class="tabs-container-resultados">
-                                <div class="tab-buttons">
-                                    <button class="tab-button-res active" data-tab="participacion"><i class="fa-solid fa-chart-pie"></i> Participación</button>
-                                    <button class="tab-button-res" data-tab="preguntas"><i class="fa-solid fa-chart-bar"></i> Preguntas</button>
-                                    <button class="tab-button-res" data-tab="participantes" style="display: none;"><i class="fa-solid fa-users"></i> Participantes</button>
-                                </div>
-                                <div class="tab-content-res">
-                                    <div id="tab-participacion" class="tab-pane-res active">
-                                        <h3>Resumen de Participación (${totalRespuestas} respuestas totales)</h3>`;
-                                        if (totalRespuestas > 0) { html += `<div class="pie-chart-container"><canvas id="pieChartParticipacion"></canvas></div>`; }
-                                        else { html += `<div style="text-align: center; padding: 30px; border: 1px dashed #ccc; border-radius: 8px; margin-top: 20px;"><i class="fa-solid fa-inbox fa-2x" style="color: #ccc; margin-bottom: 15px;"></i><p><strong>Aún no hay respuestas</strong>.</p></div>`; }
-                                        html += `
-                                    </div>
-                                    <div id="tab-preguntas" class="tab-pane-res">
-                                        <h3>Resultados por Pregunta</h3>
-                                        <div id="preguntas-graficos-container"></div>
-                                    </div>
-                                    <div id="tab-participantes" class="tab-pane-res">
-                                        <h3>Participantes Identificados</h3>
-                                        <div id="participantes-lista-container"></div>
-                                    </div>
-                                </div>
-                            </div>`;
-                        html += `</div>`; container.html(html);
-
-                        // ... (código para pintar gráficos, igual que antes) ...
-                        if (totalRespuestas > 0) { try { const ctx = document.getElementById('pieChartParticipacion').getContext('2d'); new Chart(ctx, { type: 'pie', data: { labels: ['Identificadas', 'Anónimas'], datasets: [{ label: '# de Respuestas', data: [r.resumen_participacion.respuestas_identificadas, r.resumen_participacion.respuestas_anonimas], backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(201, 203, 207, 0.7)'], borderColor: ['rgba(75, 192, 192, 1)', 'rgba(201, 203, 207, 1)'], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'top' } } } }); } catch (e) { console.error("Error al crear gráfico pastel:", e); } }
-                        const preguntasGraficosContainer = $('#preguntas-graficos-container'); if (totalRespuestas > 0 && r.preguntas && r.preguntas.length > 0) { let pce = false; r.preguntas.forEach((preg, index) => { const txt = $('<div>').text(preg.texto_pregunta).html(); if (['opcion_multiple', 'si_no', 'escala', 'seleccion_multiple'].includes(preg.tipo_pregunta)) { if (preg.resultados && preg.resultados.length > 0) { pce = true; const labels = []; const data = []; const bg = ['rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 159, 64, 0.6)', 'rgba(255, 99, 132, 0.6)']; const bd = ['rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)']; preg.resultados.forEach((res, i) => { labels.push(res.texto_opcion); data.push(res.conteo); }); const pHtml = `<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${txt}</h4><div class="bar-chart-container"><canvas id="barChartPregunta${preg.id_pregunta}"></canvas></div></div>`; preguntasGraficosContainer.append(pHtml); try { const ctxBar = document.getElementById(`barChartPregunta${preg.id_pregunta}`).getContext('2d'); new Chart(ctxBar, { type: 'bar', data: { labels: labels, datasets: [{ label: '# de Respuestas', data: data, backgroundColor: bg.slice(0, data.length), borderColor: bd.slice(0, data.length), borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } } }); } catch (e) { console.error(`Error al crear gráfico ${preg.id_pregunta}:`, e); } } else { preguntasGraficosContainer.append(`<div class="pregunta-resultado-grafico"><h4>${index + 1}. ${txt}</h4><p><em>No hay respuestas.</em></p></div>`); } } else if (preg.tipo_pregunta === 'abierta') { pce = true; let aHtml = `<div class="pregunta-resultado-abierta"><h4>${index + 1}. ${txt} (Respuesta Corta)</h4>`; if (preg.resultados && preg.resultados.length > 0) { preg.resultados.forEach(res => { aHtml += `<div class="respuesta-abierta">"${$('<div>').text(res.texto_respuesta).html()}" <span>- ${$('<div>').text(res.participante || 'Anónimo').html()}</span></div>`; }); } else { aHtml += `<p><em>No hay respuestas.</em></p>`; } aHtml += `</div>`; preguntasGraficosContainer.append(aHtml); } }); if (!pce) { preguntasGraficosContainer.html('<div style="text-align: center; padding: 20px;"><p>No hay preguntas contables.</p></div>'); } } else { preguntasGraficosContainer.html('<div style="text-align: center; padding: 30px; border: 1px dashed #ccc; border-radius: 8px; margin-top: 20px;"><i class="fa-solid fa-inbox fa-2x" style="color: #ccc; margin-bottom: 15px;"></i><p><strong>Aún no hay respuestas</strong>.</p></div>'); }
-                        if (r.visibilidad === 'identificada' && r.participantes_identificados && r.participantes_identificados.length > 0) { $('.tab-button-res[data-tab="participantes"]').show(); const pCont = $('#participantes-lista-container'); let lHtml = '<ul class="lista-participantes">'; r.participantes_identificados.forEach(p => { const nom = `${p.apellido}, ${p.nombre}`; const nomEsc = $('<div>').text(nom).html(); lHtml += `<li><a href="#" class="participante-link admin-ver-respuestas" data-id-encuesta="${idEncuesta}" data-id-alumno="${p.id_usuario}" data-nombre-alumno="${nomEsc}"><i class="fa-solid fa-user"></i> ${nomEsc}</a></li>`; }); lHtml += '</ul>'; pCont.html(lHtml); } else { $('.tab-button-res[data-tab="participantes"]').hide(); $('#participantes-lista-container').html('<p>Encuesta anónima o sin respuestas identificadas.</p>'); }
-
-                    } else { container.html(`<p style="color: red;">${response.mensaje || 'Error al cargar resultados.'}</p>`); }
-                },
-                error: function() { container.html('<p style="color: red;">Error de conexión.</p>'); }
-            });
+    activarTab(null);
+    setNavContext('results');
+    const container = $('#dashboard-content-container');
+    container.html('<div id="loading"><i class="fa-solid fa-spinner fa-spin"></i> Cargando resultados...</div>');
+    
+    $.ajax({
+        url: `../api/adminObtenerResultados.php?id_encuesta=${idEncuesta}`,
+        method: 'GET', 
+        dataType: 'json',
+        success: function(response) {
+            if (response.success && response.resultados) {
+                const r = response.resultados;
+                
+                // Verificar si es acceso limitado
+                if (r.acceso_limitado) {
+                    mostrarResultadosLimitados(r, idEncuesta, tituloEncuesta);
+                } else {
+                    mostrarResultadosCompletos(r, idEncuesta, tituloEncuesta);
+                }
+            } else {
+                container.html(`<p style="color: red;">${response.mensaje || 'Error al cargar resultados.'}</p>`);
+            }
+        },
+        error: function() {
+            container.html('<p style="color: red;">Error de conexión.</p>');
         }
+    });
+}
+
+function mostrarResultadosLimitados(r, idEncuesta, tituloEncuesta) {
+    let html = `
+        <div class="resultados-container">
+            <div class="resultados-header">
+                <h2>${$('<div>').text(r.titulo || tituloEncuesta).html()}</h2>
+                <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 10px 15px; margin: 10px 0;">
+                    <i class="fa-solid fa-eye-slash" style="color: #856404;"></i> 
+                    <strong>Vista limitada</strong> - Encuesta de: ${r.encuestador || 'Otro encuestador'}
+                </div>
+                <p>Visibilidad: ${r.visibilidad} | Estado: ${r.estado}</p>
+                ${r.descripcion ? `<p><strong>Descripción:</strong> ${$('<div>').text(r.descripcion).html()}</p>` : ''}
+            </div>
+            
+            <div class="info-basica-encuesta">
+                <h3><i class="fa-solid fa-list"></i> Preguntas de la encuesta (${r.preguntas ? r.preguntas.length : 0})</h3>
+                <div class="lista-preguntas">
+    `;
+    
+    if (r.preguntas && r.preguntas.length > 0) {
+        r.preguntas.forEach((pregunta, index) => {
+            const tipoTexto = {
+                'opcion_multiple': 'Opción Múltiple',
+                'seleccion_multiple': 'Selección Múltiple', 
+                'abierta': 'Respuesta Corta',
+                'si_no': 'Verdadero/Falso',
+                'escala': 'Escala (1-5)'
+            }[pregunta.tipo_pregunta] || pregunta.tipo_pregunta;
+            
+            html += `
+                <div class="pregunta-item">
+                    <h4>${index + 1}. ${$('<div>').text(pregunta.texto_pregunta).html()}</h4>
+                    <small>Tipo: ${tipoTexto}</small>
+                </div>
+            `;
+        });
+    } else {
+        html += `<p style="text-align: center; padding: 20px; color: #666;">No hay preguntas en esta encuesta.</p>`;
+    }
+    
+    html += `</div>`;
+    
+    // Mostrar participantes si es encuesta identificada
+    if (r.visibilidad === 'identificada' && r.participantes_identificados && r.participantes_identificados.length > 0) {
+        html += `
+            <h3 style="margin-top: 30px;"><i class="fa-solid fa-users"></i> Participantes (${r.participantes_identificados.length})</h3>
+            <ul class="lista-participantes">
+        `;
+        r.participantes_identificados.forEach(participante => {
+            const nombreCompleto = `${participante.nombre} ${participante.apellido}`.trim();
+            const displayName = nombreCompleto || participante.email;
+            html += `
+                <li>
+                    <div class="participante-info">
+                        <i class="fa-solid fa-user"></i> 
+                        ${$('<div>').text(displayName).html()}
+                        ${participante.email ? `<small style="color: #666; margin-left: 10px;">${participante.email}</small>` : ''}
+                    </div>
+                </li>
+            `;
+        });
+        html += `</ul>`;
+    } else if (r.visibilidad === 'identificada') {
+        html += `
+            <h3 style="margin-top: 30px;"><i class="fa-solid fa-users"></i> Participantes</h3>
+            <p style="text-align: center; padding: 20px; color: #666;">No hay participantes aún.</p>
+        `;
+    }
+    
+    html += `</div></div>`;
+    
+    $('#dashboard-content-container').html(html);
+}
         
         // 4. Mostrar Modal de Respuestas (versión Admin)
         function mostrarRespuestasAlumnoAdmin(idEncuesta, idAlumno, nombreAlumno) {

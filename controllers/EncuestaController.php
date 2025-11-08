@@ -443,28 +443,63 @@ class EncuestaController {
         }
     }
 
-    /**
-     * Obtiene los resultados de una encuesta (VERSIÓN ADMIN).
-     * No comprueba propiedad.
-     * @param int $id_encuesta El ID de la encuesta.
-     * @return array Respuesta con estado y datos.
-     */
-    public function obtenerResultadosAdmin($id_encuesta) {
-        if (empty($id_encuesta)) {
-            return ['estado' => 400, 'success' => false, 'mensaje' => 'Falta ID de encuesta.'];
-        }
-        try {
-            // Llama a la nueva función del modelo
-            $resultados = $this->modeloEncuesta->getResultadosAdmin($id_encuesta); 
-
-            if ($resultados === null) { return ['estado' => 404, 'success' => false, 'mensaje' => 'Encuesta no encontrada.']; }
-            if ($resultados === false) { return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de BD.']; }
-            return [ 'estado' => 200, 'success' => true, 'resultados' => $resultados ];
-        } catch (Exception $e) {
-             error_log("Exception in obtenerResultadosAdmin: " . $e->getMessage());
-             return [ 'estado' => 500, 'success' => false, 'mensaje' => 'Error al procesar resultados admin.', 'error_db' => $e->getMessage() ];
-        }
+   /**
+ * Obtiene los resultados de una encuesta (VERSIÓN ADMIN).
+ * Ahora verifica propiedad para determinar nivel de acceso.
+ * @param int $id_encuesta El ID de la encuesta.
+ * @return array Respuesta con estado y datos.
+ */
+public function obtenerResultadosAdmin($id_encuesta) {
+    if (empty($id_encuesta)) {
+        return ['estado' => 400, 'success' => false, 'mensaje' => 'Falta ID de encuesta.'];
     }
+    
+    try {
+        // Obtener ID del admin actual desde la sesión
+        $id_admin = $_SESSION['usuario']['id_usuario'];
+        
+        // Verificar si la encuesta es del admin
+        $esPropia = $this->modeloEncuesta->esEncuestaDelUsuario($id_encuesta, $id_admin);
+        
+        if ($esPropia) {
+            // Encuesta propia - acceso completo
+            $resultados = $this->modeloEncuesta->getResultadosCompletos($id_encuesta);
+            if ($resultados) {
+                $resultados['acceso_limitado'] = false;
+                $resultados['es_propia'] = true;
+            }
+        } else {
+            // Encuesta ajena - acceso limitado
+            $resultados = $this->modeloEncuesta->getResultadosLimitados($id_encuesta);
+            if ($resultados) {
+                $resultados['acceso_limitado'] = true;
+                $resultados['es_propia'] = false;
+            }
+        }
+
+        if ($resultados === null) { 
+            return ['estado' => 404, 'success' => false, 'mensaje' => 'Encuesta no encontrada.']; 
+        }
+        if ($resultados === false) { 
+            return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de BD.']; 
+        }
+        
+        return [ 
+            'estado' => 200, 
+            'success' => true, 
+            'resultados' => $resultados 
+        ];
+        
+    } catch (Exception $e) {
+        error_log("Exception in obtenerResultadosAdmin: " . $e->getMessage());
+        return [ 
+            'estado' => 500, 
+            'success' => false, 
+            'mensaje' => 'Error al procesar resultados admin.', 
+            'error_db' => $e->getMessage() 
+        ];
+    }
+}
 
 
     /**
