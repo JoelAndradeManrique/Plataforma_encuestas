@@ -455,6 +455,21 @@ $nombre = htmlspecialchars($usuario['nombre']);
             cargarTablaAlumnos();
         }
 
+                function abrirCreadorEncuestaAsignada(idEncuestador, nombreEncuestador) {
+                    // Guardar en sessionStorage o variable global
+                    sessionStorage.setItem('encuesta_asignada_a', idEncuestador);
+                    sessionStorage.setItem('nombre_encuestador_asignado', nombreEncuestador);
+                    
+                    // Cargar el formulario normal de creación
+                    cargarFormCrearAdmin();
+                    
+                    // Mostrar alerta indicando para quién se crea
+                    Toast.fire({
+                        icon: 'info',
+                        title: `Creando encuesta para: ${nombreEncuestador}`
+                    });
+                }
+
         // --- Funciones Auxiliares para Gestión de Usuarios ---
         function cargarTablaEncuestadores() {
             $('#loading-encuestadores').show();
@@ -472,6 +487,7 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                     <td>${user.asignatura ? user.asignatura : 'N/A'}</td>
                                     <td class="actions">
                                         <button class="btn-edit" data-id="${user.id_usuario}" data-rol="encuestador" title="Editar"><i class="fa-solid fa-pencil"></i></button>
+                                        <button class="btn-create-survey" data-id="${user.id_usuario}" data-nombre="${user.nombre} ${user.apellido}" title="Crear Encuesta para este Encuestador"><i class="fa-solid fa-plus"></i></button>
                                         <button class="btn-delete" data-id="${user.id_usuario}" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
                                     </td>
                                 </tr>`);
@@ -927,26 +943,60 @@ function mostrarResultadosLimitados(r, idEncuesta, tituloEncuesta) {
         
         // --- 5. Cargar "Crear Nueva Encuesta" (Admin) ---
         function cargarFormCrearAdmin() {
-            activarTab('#btn-tab-crear');
-            setNavContext('form-create');
-            const container = $('#dashboard-content-container');
-            const formHtml = `
-                <form id="form-crear-encuesta" class="form-builder-container">
-                    <div class="survey-header-editor">
-                        <input type="text" id="titulo" name="titulo" placeholder="Título del formulario" required>
-                        <textarea id="descripcion" name="descripcion" placeholder="Descripción del formulario"></textarea>
-                        <div style="display: flex; gap: 20px; margin-top: 15px; flex-wrap: wrap;">
-                            <div class="form-group" style="flex: 1; min-width: 150px;"><label>Visibilidad:</label><select id="visibilidad" name="visibilidad"><option value="identificada">Identificada</option><option value="anonima">Anónima</option></select></div>
-                            <div class="form-group" style="flex: 1; min-width: 150px;"><label>Estado inicial:</label><select id="estado" name="estado"><option value="borrador">Borrador</option><option value="publicada">Publicada</option></select></div>
-                        </div>
+    activarTab('#btn-tab-crear');
+    setNavContext('form-create');
+    const container = $('#dashboard-content-container');
+    
+    // Verificar si hay encuesta asignada
+    const idEncuestadorAsignado = sessionStorage.getItem('encuesta_asignada_a');
+    const nombreEncuestador = sessionStorage.getItem('nombre_encuestador_asignado');
+    
+    let bannerAsignacion = '';
+    if (idEncuestadorAsignado) {
+        bannerAsignacion = `
+            <div class="asignacion-banner" style="background: #e3f2fd; border: 1px solid #2196f3; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                <i class="fa-solid fa-user-tie" style="color: #2196f3;"></i>
+                <strong>Creando encuesta para:</strong> ${nombreEncuestador}
+                <button id="btn-cancelar-asignacion" class="btn-cancelar-asignacion" style="margin-left: 15px; background: #ff5722; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
+                    <i class="fa-solid fa-times"></i> Cancelar asignación
+                </button>
+            </div>
+        `;
+    }
+    
+    const formHtml = `
+        ${bannerAsignacion}
+        <form id="form-crear-encuesta" class="form-builder-container">
+            <div class="survey-header-editor">
+                <input type="text" id="titulo" name="titulo" placeholder="Título del formulario" required>
+                <textarea id="descripcion" name="descripcion" placeholder="Descripción del formulario"></textarea>
+                <div style="display: flex; gap: 20px; margin-top: 15px; flex-wrap: wrap;">
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label>Visibilidad:</label>
+                        <select id="visibilidad" name="visibilidad">
+                            <option value="identificada">Identificada</option>
+                            <option value="anonima">Anónima</option>
+                        </select>
                     </div>
-                    <div id="preguntas-container"></div>
-                    <button type="button" id="btn-add-pregunta" class="btn-add-pregunta"><i class="fa-solid fa-plus"></i> Añadir Pregunta</button>
-                </form>`;
-            container.html(formHtml);
-            preguntaIndex = 0;
-            agregarPregunta();
-        }
+                    <div class="form-group" style="flex: 1; min-width: 150px;">
+                        <label>Estado inicial:</label>
+                        <select id="estado" name="estado">
+                            <option value="borrador">Borrador</option>
+                            <option value="publicada">Publicada</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="preguntas-container"></div>
+            <button type="button" id="btn-add-pregunta" class="btn-add-pregunta">
+                <i class="fa-solid fa-plus"></i> Añadir Pregunta
+            </button>
+        </form>`;
+    
+    container.html(formHtml);
+    preguntaIndex = 0;
+    agregarPregunta();
+}
 
         // --- ✅ 6. Cargar Formulario para EDITAR Borrador (Admin) ---
         function cargarFormEditarAdmin(idEncuesta) {
@@ -1212,17 +1262,52 @@ function mostrarResultadosLimitados(r, idEncuesta, tituloEncuesta) {
 
             // Submit del Formulario Crear Encuesta
             $('#dashboard-content-container').on('submit', '#form-crear-encuesta', function(e) {
-                e.preventDefault(); const datosEncuesta = { titulo: $('#titulo').val().trim(), descripcion: $('#descripcion').val().trim(), visibilidad: $('#visibilidad').val(), estado: $('#estado').val(), preguntas: [] };
-                if (!datosEncuesta.titulo) { Swal.fire('Error', 'Título obligatorio.', 'error'); $('#titulo').focus(); return; }
+                                e.preventDefault(); 
+                    
+                    const idEncuestadorAsignado = sessionStorage.getItem('encuesta_asignada_a');
+                    
+                    const datosEncuesta = { 
+                        titulo: $('#titulo').val().trim(), 
+                        descripcion: $('#descripcion').val().trim(), 
+                        visibilidad: $('#visibilidad').val(), 
+                        estado: $('#estado').val(), 
+                        preguntas: [],
+                        // Agregar el campo para asignación
+                        id_encuestador_asignado: idEncuestadorAsignado || null
+                    };
+                    if (!datosEncuesta.titulo) { Swal.fire('Error', 'Título obligatorio.', 'error'); $('#titulo').focus(); return; }
                 $('.pregunta-block').each(function(index) { const block = $(this); const textoPregunta = block.find('input[name*="[texto_pregunta]"]').val().trim(); const tipoPregunta = block.find('select[name*="[tipo_pregunta]"]').val(); if (!textoPregunta) { console.warn(`Pregunta ${index+1} ignorada.`); return; } const preguntaData = { texto_pregunta: textoPregunta, tipo_pregunta: tipoPregunta, orden: index + 1, opciones: [] }; block.find('.opcion-item input[type="text"]').each(function() { const textoOpcion = $(this).val().trim(); if (!$(this).prop('disabled') && textoOpcion !== "") { preguntaData.opciones.push({ texto_opcion: textoOpcion }); } }); if (tipoPregunta === 'si_no') { preguntaData.opciones.push({texto_opcion:'Verdadero'}); preguntaData.opciones.push({texto_opcion:'Falso'}); } else if (tipoPregunta === 'escala') { preguntaData.opciones.push({texto_opcion:'1', valor_escala: 1}); preguntaData.opciones.push({texto_opcion:'2', valor_escala: 2}); preguntaData.opciones.push({texto_opcion:'3', valor_escala: 3}); preguntaData.opciones.push({texto_opcion:'4', valor_escala: 4}); preguntaData.opciones.push({texto_opcion:'5', valor_escala: 5}); } datosEncuesta.preguntas.push(preguntaData); });
                 if (datosEncuesta.preguntas.length === 0) { Swal.fire('Error', 'Añade al menos una pregunta válida.', 'error'); return; }
                 const saveBtn = $('#publish-button-placeholder .btn-publish'); saveBtn.prop('disabled',true).html('<i class="fa-solid fa-spinner fa-spin"></i> Guardando...');
                 
-                $.ajax({ url: '../api/crearEncuesta.php', method: 'POST', contentType: 'application/json', data: JSON.stringify(datosEncuesta),
-                    success: function(res) { if(res.success) { Swal.fire('¡Guardado!', res.mensaje||'Ok.', 'success'); cargarGestionEncuestas(); } else { Swal.fire('Error al guardar', res.mensaje||'Ocurrió un error.', 'error'); saveBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Guardar Encuesta'); } },
-                    error: function(jqXHR) { console.error("Error AJAX crear:", jqXHR.responseText); let msg='Error conexión.'; if(jqXHR.responseJSON&&jqXHR.responseJSON.mensaje){msg=jqXHR.responseJSON.mensaje;}else if(jqXHR.status===500){msg='Error servidor.';} Swal.fire('Error', msg, 'error'); saveBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Guardar Encuesta'); }
-                });
-            });
+                $.ajax({ 
+    url: '../api/adminCrearEncuestaAsignada.php', // ✅ Este endpoint SÍ sirve
+    method: 'POST', 
+    contentType: 'application/json', 
+    data: JSON.stringify(datosEncuesta),
+    success: function(res) { 
+        if(res.success) { 
+            // Limpiar la asignación después de crear
+            sessionStorage.removeItem('encuesta_asignada_a');
+            sessionStorage.removeItem('nombre_encuestador_asignado');
+            
+            Swal.fire('¡Guardado!', res.mensaje||'Ok.', 'success'); 
+            cargarGestionEncuestas(); 
+        } else { 
+            Swal.fire('Error al guardar', res.mensaje||'Ocurrió un error.', 'error'); 
+            saveBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Guardar Encuesta'); 
+        } 
+    },
+    error: function(jqXHR) { 
+        console.error("Error AJAX crear:", jqXHR.responseText); 
+        let msg='Error conexión.'; 
+        if(jqXHR.responseJSON&&jqXHR.responseJSON.mensaje){msg=jqXHR.responseJSON.mensaje;}
+        else if(jqXHR.status===500){msg='Error servidor.';} 
+        Swal.fire('Error', msg, 'error'); 
+        saveBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Guardar Encuesta'); 
+    }
+});
+});
 
             // --- ✅ NUEVOS MANEJADORES DE ENCUESTA (copiados de dashboard_general) ---
             
@@ -1275,6 +1360,20 @@ function mostrarResultadosLimitados(r, idEncuesta, tituloEncuesta) {
                     }
                 });
             });
+
+                            // En los manejadores de eventos, agregar:
+                $('#dashboard-content-container').on('click', '.btn-create-survey', function() {
+                    const idEncuestador = $(this).data('id');
+                    const nombreEncuestador = $(this).data('nombre');
+                    abrirCreadorEncuestaAsignada(idEncuestador, nombreEncuestador);
+                });
+
+                // Cancelar asignación
+                $('#dashboard-content-container').on('click', '#btn-cancelar-asignacion', function() {
+                    sessionStorage.removeItem('encuesta_asignada_a');
+                    sessionStorage.removeItem('nombre_encuestador_asignado');
+                    cargarFormCrearAdmin(); // Recargar sin asignación
+                });
 
             // Submit del Formulario EDITAR Encuesta
             $('#dashboard-content-container').on('submit', '#form-editar-encuesta', function(e) {

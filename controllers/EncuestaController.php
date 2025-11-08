@@ -443,13 +443,7 @@ class EncuestaController {
         }
     }
 
-   /**
- * Obtiene los resultados de una encuesta (VERSIÓN ADMIN).
- * Ahora verifica propiedad para determinar nivel de acceso.
- * @param int $id_encuesta El ID de la encuesta.
- * @return array Respuesta con estado y datos.
- */
-public function obtenerResultadosAdmin($id_encuesta) {
+  public function obtenerResultadosAdmin($id_encuesta) {
     if (empty($id_encuesta)) {
         return ['estado' => 400, 'success' => false, 'mensaje' => 'Falta ID de encuesta.'];
     }
@@ -458,8 +452,13 @@ public function obtenerResultadosAdmin($id_encuesta) {
         // Obtener ID del admin actual desde la sesión
         $id_admin = $_SESSION['usuario']['id_usuario'];
         
+        // DEBUG: Verificar valores
+        error_log("DEBUG: id_encuesta=$id_encuesta, id_admin=$id_admin");
+        
         // Verificar si la encuesta es del admin
         $esPropia = $this->modeloEncuesta->esEncuestaDelUsuario($id_encuesta, $id_admin);
+        
+        error_log("DEBUG: esPropia=" . ($esPropia ? 'true' : 'false'));
         
         if ($esPropia) {
             // Encuesta propia - acceso completo
@@ -629,6 +628,74 @@ public function obtenerResultadosAdmin($id_encuesta) {
             return ['estado' => 500, 'success' => false, 'mensaje' => 'Error de base de datos al actualizar.', 'error_db' => $e->getMessage()];
         }
     }
+
+  /**
+ * Crea una encuesta como administrador pero la asigna a un encuestador específico
+ * @param array $datos Datos de la encuesta incluyendo id_encuestador_asignado
+ * @return array Respuesta con estado y mensaje
+ */
+public function crearEncuestaAsignada($datos) {
+    // Validación básica
+    if (empty($datos['titulo']) || empty($datos['visibilidad']) || empty($datos['id_encuestador_asignado'])) {
+        return ['estado' => 400, 'success' => false, 'mensaje' => 'Título, visibilidad e ID de encuestador asignado son requeridos.'];
+    }
+
+    if ($datos['visibilidad'] !== 'identificada' && $datos['visibilidad'] !== 'anonima') {
+        return ['estado' => 400, 'success' => false, 'mensaje' => 'Visibilidad no válida.'];
+    }
+
+    if (empty($datos['preguntas']) || !is_array($datos['preguntas'])) {
+        return ['estado' => 400, 'success' => false, 'mensaje' => 'La encuesta debe tener al menos una pregunta.'];
+    }
+
+    // Validación de preguntas
+    $tipos_validos = ['opcion_multiple', 'seleccion_multiple', 'escala', 'abierta', 'si_no'];
+    foreach($datos['preguntas'] as $pregunta) {
+        if(empty($pregunta['texto_pregunta']) || empty($pregunta['tipo_pregunta'])) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => 'Todas las preguntas deben tener texto y tipo.'];
+        }
+        if(!in_array($pregunta['tipo_pregunta'], $tipos_validos)) {
+            return ['estado' => 400, 'success' => false, 'mensaje' => "Tipo de pregunta no válido: " . htmlspecialchars($pregunta['tipo_pregunta'])];
+        }
+    }
+
+    // **SOLUCIÓN SIMPLIFICADA**: No verificamos si el encuestador existe, 
+    // simplemente usamos su ID para crear la encuesta
+    $datos['id_encuestador'] = $datos['id_encuestador_asignado'];
+    $id_encuesta = $this->modeloEncuesta->create($datos);
+
+    if ($id_encuesta) {
+        return [
+            'estado' => 201,
+            'success' => true,
+            'mensaje' => 'Encuesta creada y asignada al encuestador con éxito.',
+            'id_encuesta' => $id_encuesta
+        ];
+    } else {
+        $db_error = property_exists($this->conexion, 'error') ? $this->conexion->error : 'Error desconocido en DB.';
+        return [
+            'estado' => 500,
+            'success' => false,
+            'mensaje' => 'Error al guardar la encuesta en la base de datos.',
+            'error_db' => $db_error
+        ];
+    }
+}
+
+/**
+ * Método wrapper para crear encuesta normal (para mantener compatibilidad)
+ * @param array $datos Datos de la encuesta
+ * @return array Respuesta con estado y mensaje
+ */
+public function crearEncuesta($datos) {
+    // Si viene id_encuestador_asignado, usar el método específico
+    if (isset($datos['id_encuestador_asignado']) && !empty($datos['id_encuestador_asignado'])) {
+        return $this->crearEncuestaComoEncuestador($datos);
+    }
+    
+    // Si no, usar el método normal
+    return $this->crearNuevaEncuesta($datos);
+}
 
     
     
