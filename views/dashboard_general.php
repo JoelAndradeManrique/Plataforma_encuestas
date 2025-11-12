@@ -118,10 +118,78 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
         .lista-participantes { list-style: none; padding: 0; margin: 0; } .lista-participantes li { border-bottom: 1px solid #f0f0f0; } .participante-link { display: block; padding: 12px 10px; text-decoration: none; color: #333; transition: background-color 0.2s ease; border-radius: 4px; } .participante-link:hover { background-color: #f8f9fa; color: #007bff; } .participante-link i { margin-right: 10px; color: #6c757d; }
         .swal-form-respuestas { text-align: left; max-height: 50vh; overflow-y: auto; padding: 5px 15px; margin-top: -10px; } .swal-pregunta-item { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; } .swal-pregunta-item:last-child { border-bottom: none; margin-bottom: 0; } .swal-pregunta-item h4 { font-size: 1.1em; color: #333; margin-bottom: 10px; } .swal-opcion-item { font-size: 1em; color: #888; margin-left: 10px; padding: 5px; display: flex; align-items: center; gap: 10px; } .swal-opcion-item.selected { font-weight: bold; color: #007bff; background-color: #e3f2fd; border-radius: 4px; } .swal-opcion-item i { color: #007bff; font-size: 0.9em; } .swal-opcion-item i.fa-circle, .swal-opcion-item i.fa-square { color: #ccc; } .swal-respuesta-abierta-display { font-style: italic; color: #333; background: #f8f9fa; border: 1px solid #eee; border-radius: 4px; padding: 10px; margin-top: 5px; width: 95%; }
 
+        /* --- Estilos del Menú de Perfil --- */
+.profile-dropdown {
+    position: relative;
+    margin-left: 15px;
+}
+.profile-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 5px;
+    transition: background-color 0.2s ease;
+    -webkit-user-select: none; /* Evita que el texto se seleccione al hacer clic */
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+.profile-toggle:hover {
+    background-color: #f1f1f1;
+}
+.profile-toggle .icon-chevron {
+    font-size: 0.8em;
+    transition: transform 0.3s ease;
+}
+/* Clase 'open' que añadiremos con JS */
+.profile-dropdown.open .profile-toggle .icon-chevron {
+    transform: rotate(180deg);
+}
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    min-width: 200px;
+    z-index: 1001;
+    overflow: hidden;
+}
+.profile-dropdown.open .dropdown-menu {
+    display: block;
+}
+.dropdown-menu a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 15px;
+    text-decoration: none;
+    color: #333;
+    font-size: 0.9rem;
+}
+.dropdown-menu a:hover {
+    background-color: #f8f9fa;
+    color: #007bff;
+}
+.dropdown-menu a i {
+    width: 15px;
+    text-align: center;
+    color: #888;
+}
+.dropdown-menu a:hover i {
+    color: #007bff;
+}
         /* (Media Queries omitidas por brevedad) */
         @media (min-width: 768px) { .encuesta-item { flex-direction: row; align-items: center; } .encuesta-info { margin-bottom: 0; } .encuesta-acciones { flex-grow: 0; flex-wrap: nowrap; } }
         @media (max-width: 768px) { .dashboard-header { flex-direction: column; padding: 10px; min-height: auto; align-items: stretch;} .header-left-group { width: 100%; justify-content: space-between; margin-bottom: 10px;} .header-right-group { width: 100%; justify-content: space-between; } .dashboard-tabs { justify-content: center; } .header-logo { margin-right: 0; } }
         @media (max-width: 480px) { .dashboard-tabs { flex-wrap: wrap; justify-content: center;} .tab-link { font-size: 0.9rem; padding: 10px 8px; } .header-logo { font-size: 1.2rem; } .btn-logout, .user-profile span { font-size: 0.8rem;} .btn-publish { font-size: 0.8rem; padding: 6px 10px;} .encuesta-acciones button, .encuesta-acciones a { font-size: 0.8rem; padding: 6px 8px; } .tab-button-res { font-size: 0.95rem; padding: 10px 15px; } }
+    
+    
     </style>
 </head>
 <body>
@@ -136,10 +204,20 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                 </nav>
             </div>
             <div class="header-right-group">
-                <div id="publish-button-placeholder"></div>
-                <a href="logout.php" class="btn-logout"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
-                <div class="user-profile"><i class="fa-solid fa-user"></i> <span><?php echo $nombre; ?></span></div>
-            </div>
+    <div id="publish-button-placeholder"></div>
+    
+    <div class="profile-dropdown">
+        <div class="profile-toggle">
+            <i class="fa-solid fa-user"></i> 
+            <span><?php echo $nombre; ?></span>
+            <i class="fa-solid fa-chevron-down icon-chevron"></i>
+        </div>
+        <div class="dropdown-menu">
+            <a href="#" id="btn-cambiar-contrasena"><i class="fa-solid fa-key"></i> Cambiar Contraseña</a>
+            <a href="logout.php"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
+        </div>
+    </div>
+</div>
         </header>
 
         <div class="back-button-bar" id="back-button-container" style="display: none;">
@@ -544,17 +622,105 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
             }
         }
 
+        
+
+        function mostrarModalCambioPassword(esForzado) {
+        
+        // Define el título y texto según si es forzado o voluntario
+        let modalTitle = 'Modificar Contraseña';
+        let modalText = 'Aquí puedes cambiar tu contraseña.';
+        let modalIcon = 'info';
+
+        if (esForzado) {
+            modalTitle = 'Cambio de Contraseña Requerido';
+            modalText = 'Por seguridad, debes establecer una nueva contraseña.';
+            modalIcon = 'warning';
+        } else if (<?php echo $esTemporal ? 'true' : 'false'; ?>) {
+            // Esta es tu petición exacta:
+            modalText = "Si eres un encuestador nuevo, te sugerimos cambiar tu contraseña temporal por una personal.";
+        }
+
+        const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
+        
+        Swal.fire({ 
+            title: modalTitle, 
+            text: modalText, 
+            icon: modalIcon, 
+            allowOutsideClick: !esForzado, // Si no es forzado, permite cerrar
+            allowEscapeKey: !esForzado,  // Si no es forzado, permite cerrar
+            html: `<div style="text-align: left; margin-top: 15px;"><label for="swal-pass1" class="swal2-label">Nueva Contraseña</label><input type="password" id="swal-pass1" class="swal2-input" placeholder="Nueva contraseña"><label for="swal-pass2" class="swal2-label" style="margin-top: 10px;">Confirmar Contraseña</label><input type="password" id="swal-pass2" class="swal2-input" placeholder="Confirmar contraseña"><div id="swal-hint" style="font-size: 0.8em; color: #666; margin-top: 10px;">*Mínimo 8 carac, 1 especial (ej. !@#$) y terminar con AL</div></div>`, 
+            confirmButtonText: 'Guardar Contraseña', 
+            showLoaderOnConfirm: true,
+            preConfirm: () => { 
+                const p1 = $('#swal-pass1').val(); 
+                const p2 = $('#swal-pass2').val(); 
+                if (!p1 || !p2) { Swal.showValidationMessage('Campos obligatorios.'); return false; } 
+                if (p1 !== p2) { Swal.showValidationMessage('Contraseñas no coinciden.'); return false; } 
+                if (p1.length < 8 || !p1.toLowerCase().endsWith('al') || !specialCharRegex.test(p1)) { Swal.showValidationMessage('Contraseña no cumple requisitos.'); return false; } 
+                return { nueva_contrasena: p1, confirmar_contrasena: p2 }; 
+            }
+        }).then((result) => { 
+            if (result.isConfirmed && result.value) { 
+                $.ajax({ 
+                    url: '../api/cambiarContrasena.php', 
+                    method: 'POST', 
+                    contentType: 'application/json', 
+                    data: JSON.stringify(result.value), 
+                    success: (r) => { 
+                        if (r.success) {
+                            // Importante: Recargar para actualizar la sesión de PHP
+                            Swal.fire('¡Éxito!', 'Contraseña actualizada. La página se recargará.', 'success').then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            // Re-abre el modal si falla (ej. error del API)
+                            Swal.fire('Error', r.mensaje || 'No se pudo actualizar.', 'error').then(() => {
+                                mostrarModalCambioPassword(esForzado);
+                            });
+                        } 
+                    }, 
+                    error: () => Swal.fire('Error', 'Error de conexión.', 'error').then(() => {
+                                mostrarModalCambioPassword(esForzado);
+                           })
+                }); 
+            } 
+        });
+    }
+        
+        
+
         // --- MANEJADORES DE EVENTOS PRINCIPALES ---
         $(document).ready(function() {
-            cargarMisEncuestas(); // Carga inicial
+        cargarMisEncuestas(); // Carga inicial
 
-            // Pop-up contraseña temporal
-            <?php if ($esTemporal): ?>
-            const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
-            Swal.fire({ title: 'Cambio de Contraseña Requerido', text: 'Por seguridad, debes establecer una nueva contraseña.', icon: 'warning', allowOutsideClick: false, allowEscapeKey: false, html: `<div style="text-align: left; margin-top: 15px;"><label for="swal-pass1" class="swal2-label">Nueva Contraseña</label><input type="password" id="swal-pass1" class="swal2-input" placeholder="Nueva contraseña"><label for="swal-pass2" class="swal2-label" style="margin-top: 10px;">Confirmar Contraseña</label><input type="password" id="swal-pass2" class="swal2-input" placeholder="Confirmar contraseña"><div id="swal-hint" style="font-size: 0.8em; color: #666; margin-top: 10px;">*Mínimo 8 carac, 1 especial (ej. !@#$) y terminar con AL</div></div>`, confirmButtonText: 'Guardar Contraseña', showLoaderOnConfirm: true,
-                preConfirm: () => { const p1 = $('#swal-pass1').val(); const p2 = $('#swal-pass2').val(); if (!p1 || !p2) { Swal.showValidationMessage('Campos obligatorios.'); return false; } if (p1 !== p2) { Swal.showValidationMessage('Contraseñas no coinciden.'); return false; } if (p1.length < 8 || !p1.toLowerCase().endsWith('al') || !specialCharRegex.test(p1)) { Swal.showValidationMessage('Contraseña no cumple requisitos.'); return false; } return { nueva_contrasena: p1, confirmar_contrasena: p2 }; }
-            }).then((result) => { if (result.isConfirmed && result.value) { $.ajax({ url: '../api/cambiarContrasena.php', method: 'POST', contentType: 'application/json', data: JSON.stringify(result.value), success: (r) => { if (r.success) Swal.fire('¡Éxito!', 'Contraseña actualizada.', 'success'); else Swal.showValidationMessage(r.mensaje); }, error: () => Swal.showValidationMessage('Error conexión.') }); } });
-            <?php endif; ?>
+        // Pop-up contraseña temporal (¡AHORA USA LA NUEVA FUNCIÓN!)
+        <?php if ($esTemporal): ?>
+        mostrarModalCambioPassword(true); // Llama al modal en modo FORZADO
+        <?php endif; ?>
+
+        // --- Lógica del Menú de Perfil ---
+        $('.profile-toggle').on('click', function(e) {
+            e.stopPropagation(); // Evita que el clic se propague al 'document'
+            $(this).closest('.profile-dropdown').toggleClass('open');
+        });
+
+        // Clic en "Modificar Perfil"
+        $('#btn-cambiar-contrasena').on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation(); // Evita que el clic se propague al 'document'
+            $('.profile-dropdown').removeClass('open'); // Cierra el menú
+            
+            // Llama al modal en modo NO-FORZADO
+            mostrarModalCambioPassword(false); 
+        });
+
+        // Clic fuera del menú para cerrarlo
+        $(document).on('click', function(e) {
+            // Si el clic NO fue dentro del dropdown
+            if (!$('.profile-dropdown').is(e.target) && $('.profile-dropdown').has(e.target).length === 0) {
+                $('.profile-dropdown').removeClass('open');
+            }
+        });
 
             // --- Navegación por Pestañas (Cabecera) ---
             $('#btn-tab-mis-encuestas').on('click', (e) => { e.preventDefault(); cargarMisEncuestas(); });
@@ -611,6 +777,8 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                     error: function(jqXHR) { console.error("Error AJAX crear:", jqXHR.responseText); let msg='Error conexión.'; if(jqXHR.responseJSON&&jqXHR.responseJSON.mensaje){msg=jqXHR.responseJSON.mensaje;}else if(jqXHR.status===500){msg='Error servidor.';} Swal.fire('Error', msg, 'error'); saveBtn.prop('disabled', false).html('<i class="fa-solid fa-save"></i> Guardar Encuesta'); }
                 });
             });
+
+            
 
              // --- ✅ Submit del Formulario EDITAR Encuesta (AHORA ACTIVADO) ---
              $('#dashboard-content-container').on('submit', '#form-editar-encuesta', function(e) {
@@ -726,7 +894,9 @@ $esTemporal = isset($usuario['password_temporal']) && $usuario['password_tempora
                 });
             }
 
-        }); // Fin $(document).ready
+        }
+    
+    ); // Fin $(document).ready
     </script>
 </body>
 </html>

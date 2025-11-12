@@ -47,8 +47,18 @@ $datos_para_controlador = [
     'email' => trim($datos['email']),
     'carrera' => $datos['carrera'],
     'asignatura' => trim($datos['asignatura']),
-    'contrasena' => $datos['contrasena']
+    'contrasena' => $datos['contrasena'],
+
+    // ✅ ¡AÑADE ESTA LÍNEA QUE FALTABA!
+    // Esto toma el '1' del JS y lo pasa al controlador.
+    'password_temporal' => $datos['password_temporal'] ?? 0 
 ];
+
+if (isset($datos_para_controlador['password_temporal'])) {
+    error_log("API: password_temporal SÍ ESTÁ PRESENTE. Valor: " . $datos_para_controlador['password_temporal']);
+} else {
+    error_log("API: password_temporal NO LLEGÓ a datos_para_controlador.");
+}
 
 $controlador = new UsuarioController($conexion);
 $respuesta = $controlador->registrarEncuestador($datos_para_controlador);

@@ -1233,12 +1233,23 @@ function mostrarResultadosLimitados(r, idEncuesta, tituloEncuesta) {
             $('#dashboard-content-container').on('submit', '#form-crear-encuestador', function(e) {
                 e.preventDefault();
                 const $button = $(this).find('.btn-crear-encuestador'); $button.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Creando...');
-                const datos = { nombre: $('#admin-nombre-enc').val().trim(), apellido: $('#admin-apellido-enc').val().trim(), email: $('#admin-email-enc').val().trim(), carrera: $('#admin-carrera-enc').val(), asignatura: $('#admin-asignatura-enc').val().trim(), contrasena: $('#admin-contrasena-enc').val() };
-                const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
+                const datos = { 
+                        nombre: $('#admin-nombre-enc').val().trim(), 
+                        apellido: $('#admin-apellido-enc').val().trim(), 
+                        email: $('#admin-email-enc').val().trim(), 
+                        carrera: $('#admin-carrera-enc').val(), 
+                        asignatura: $('#admin-asignatura-enc').val().trim(), 
+                        contrasena: $('#admin-contrasena-enc').val(),
+                        
+                        // ✅ ¡ESTA ES LA LÍNEA CLAVE QUE NECESITAS!
+                        // Asegúrate de que se llame 'password_temporal' (con 'w')
+                        password_temporal: 1 
+                    }; 
+                   const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/;
                 if (datos.contrasena.length < 8 || !datos.contrasena.toLowerCase().endsWith('al') || !specialCharRegex.test(datos.contrasena)) { Swal.fire('Error', 'La contraseña no cumple los requisitos (8+ carac, 1 especial, termina en "AL").', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); return; }
                  if (!datos.email.toLowerCase().endsWith('@tecmerida.com')) { Swal.fire('Error', 'El correo debe ser @tecmerida.com.', 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); return; }
                 $.ajax({
-                    url: '../api/adminCrearEncuestador.php', method: 'POST', contentType: 'application/json', data: JSON.stringify(datos),
+                    url: '../api/registrarEncuestador.php', method: 'POST', contentType: 'application/json', data: JSON.stringify(datos),
                     success: function(response) { if (response.success) { Swal.fire('¡Éxito!', 'Encuestador registrado.', 'success'); $('#form-crear-encuestador')[0].reset(); cargarTablaEncuestadores(); } else { Swal.fire('Error', response.mensaje || 'No se pudo registrar.', 'error'); } $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); },
                     error: function(jqXHR) { let errorMsg = 'Error de conexión.'; if (jqXHR.responseJSON && jqXHR.responseJSON.mensaje) { errorMsg = jqXHR.responseJSON.mensaje; } Swal.fire('Error', errorMsg, 'error'); $button.prop('disabled', false).html('<i class="fa-solid fa-user-plus"></i> Crear Encuestador'); }
                 });
