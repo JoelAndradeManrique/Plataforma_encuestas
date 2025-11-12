@@ -435,7 +435,17 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                                                                     </select>
                                                                                 </div>
                                         <div class="form-group"><label for="admin-asignatura-enc">Materia (Asignatura)</label><input type="text" id="admin-asignatura-enc" required></div>
-                                        <div class="form-group"><label for="admin-contrasena-enc">Contraseña Temporal</label><input type="password" id="admin-contrasena-enc" required><div class="password-hint">Debe cumplir: 8+ carac, 1 especial, termina en "AL"</div></div>
+                                        <div class="form-group">
+  <label for="admin-contrasena-enc">Contraseña Temporal</label>
+  <div class="password-wrapper" style="position: relative;">
+    <input type="password" id="admin-contrasena-enc" required>
+    <i class="fa-solid fa-eye toggle-password"
+       data-target="#admin-contrasena-enc"
+       style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;">
+    </i>
+  </div>
+  <div class="password-hint">Debe cumplir: 8+ carac, 1 especial, termina en "AL"</div>
+</div>
                                         <button type="submit" class="btn-crear-usuario btn-crear-encuestador"><i class="fa-solid fa-user-plus"></i> Crear Encuestador</button>
                                     </form>
                                 </div>
@@ -466,9 +476,29 @@ $nombre = htmlspecialchars($usuario['nombre']);
                                                 <option value="otro">Otro</option>
                                             </select>
                                         </div>
-                                        <div class="form-group"><label for="admin-contrasena-alu">Contraseña</label><input type="password" id="admin-contrasena-alu" required><div class="password-hint">Debe cumplir: 8+ carac, 1 especial, termina en "AL"</div></div>
-                                        <div class="form-group"><label for="admin-confirmar-alu">Confirmar Contraseña</label><input type="password" id="admin-confirmar-alu" required></div>
-                                        <button type="submit" class="btn-crear-usuario btn-crear-alumno"><i class="fa-solid fa-user-plus"></i> Crear Alumno</button>
+                                        <div class="form-group">
+  <label for="admin-contrasena-alu">Contraseña</label>
+  <div class="password-wrapper" style="position: relative;">
+    <input type="password" id="admin-contrasena-alu" required>
+    <i class="fa-solid fa-eye toggle-password"
+       data-target="#admin-contrasena-alu"
+       style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;">
+    </i>
+  </div>
+  <div class="password-hint">Debe cumplir: 8+ carac, 1 especial, termina en "AL"</div>
+</div>
+
+<!-- Campo Confirmar Contraseña -->
+<div class="form-group">
+  <label for="admin-confirmar-alu">Confirmar Contraseña</label>
+  <div class="password-wrapper" style="position: relative;">
+    <input type="password" id="admin-confirmar-alu" required>
+    <i class="fa-solid fa-eye toggle-password"
+       data-target="#admin-confirmar-alu"
+       style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer;">
+    </i>
+  </div>
+</div><button type="submit" class="btn-crear-usuario btn-crear-alumno"><i class="fa-solid fa-user-plus"></i> Crear Alumno</button>
                                     </form>
                                 </div>
                             </div>
@@ -502,6 +532,12 @@ $nombre = htmlspecialchars($usuario['nombre']);
                     </div>
                 </div>`;
             container.html(html);
+            $('#dashboard-content-container').on('click', '.toggle-password', function() {
+  const target = $($(this).data('target'));
+  const type = target.attr('type') === 'password' ? 'text' : 'password';
+  target.attr('type', type);
+  $(this).toggleClass('fa-eye fa-eye-slash');
+});
             
             cargarTablaEncuestadores();
             cargarTablaAlumnos();
